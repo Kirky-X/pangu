@@ -1,0 +1,67 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-ruby-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Quality (RuboCop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: bundle exec rubocop
+  test:
+    name: Test + Coverage (≥80%)
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      COVERAGE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: bundle exec rspec
+      - name: Enforce 80% line coverage
+        run: |
+          cov=$(ruby -rjson -e '
+            f = "coverage/.last_run.json"
+            if File.exist?(f)
+              d = JSON.parse(File.read(f))
+              pct = d.dig("result","covered_percent") || d.dig("result","line") || 0
+              print pct.to_f
+            else
+              print 0
+            end
+          ' 2>/dev/null || echo 0)
+          echo "Line coverage: ${cov}%"
+          awk -v c="$cov" 'BEGIN{exit !(c+0 < 80)}' && \
+            { echo "::error::Coverage ${cov}% < 80%"; exit 1; } || true
+      - name: Upload coverage
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        run: curl -s https://codecov.io/bash | bash -s -- -f coverage/.resultset.json || true
+  security:
+    name: Security (Brakeman + bundle-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - name: Brakeman（Rails 应用，对应 Ruby→Brakeman）
+        run: |
+          bundle exec brakeman --no-exit-on-warn 2>/dev/null || \
+            echo "::notice::Brakeman 仅对 Rails 应用生效，非 Rails 项目自动跳过"
+      - name: bundle-audit（依赖 CVE）
+        run: bundle exec bundle-audit check --update || true

@@ -1,0 +1,40 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    name: Build dist archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+      - run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+      - name: Stage release archive
+        run: |
+          mkdir -p staging
+          name="${GITHUB_REPOSITORY##*/}-${GITHUB_REF_NAME#v}"
+          tar -czf "staging/${name}.tar.gz" \
+            --exclude=staging --exclude=.git --exclude=tests --exclude=.github .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: staging
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: staging }
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: staging/*
+  # Packagist 通过 git tag webhook 自动同步，无需 push key。
+  # 如需手动触发更新，参考 references/registry-secrets.md。

@@ -1,0 +1,14 @@
+# Rust 构建产物
+/target
+**/*.rs.bk
+
+# 注: Cargo.lock — 二进制项目应提交(已默认)；库项目如需忽略请取消下行注释
+# Cargo.lock
+
+# 通用
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/
+*.log

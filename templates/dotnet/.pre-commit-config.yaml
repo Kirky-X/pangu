@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-xml
+      - id: check-added-large-files
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: dotnet-format
+        name: dotnet format (verify)
+        entry: dotnet format --verify-no-changes --severity warn
+        language: system
+        types: [c#]
+        pass_filenames: false
+      - id: dotnet-vulnerable
+        name: dotnet list package --vulnerable
+        entry: dotnet list package --vulnerable --include-transitive
+        language: system
+        files: \.csproj$|\.props$|Directory\.Packages\.props$
+        pass_filenames: false

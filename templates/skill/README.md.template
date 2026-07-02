@@ -1,0 +1,49 @@
+# {{SKILL_NAME_CN}} ({{SKILL_NAME}}) —— {{SKILL_DESCRIPTION}}
+
+[![GitHub Release](https://img.shields.io/github/v/release/{{SKILL_AUTHOR}}/{{SKILL_NAME}}?style=flat-square)](https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}/releases)
+[![GitHub License](https://img.shields.io/github/license/{{SKILL_AUTHOR}}/{{SKILL_NAME}}?style=flat-square)](LICENSE)
+
+{{SKILL_DESCRIPTION}}
+
+## 功能特性
+
+- **Skill 行为协议**：定义 agent 在特定场景下的行为约束与输出规范
+- **参考资产**：references/ 目录存放深度参考资料
+- **specmark 驱动变更**：specmark/ 目录管理 spec-driven 变更流程
+- **自动化发布**：tag 触发 GitHub Release 工作流
+
+## 安装
+
+### 方式一：通过 `skills` 包安装（推荐）
+
+需 [Node.js](https://nodejs.org/) 18+ 和 `skills` npm 包（v1.5.12+）。
+
+```bash
+npx skills install {{SKILL_AUTHOR}}/{{SKILL_NAME}}
+```
+
+### 方式二：手动克隆
+
+```bash
+git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git ~/.claude/skills/{{SKILL_NAME}}
+```
+
+## 使用
+
+加载本 skill 后，按 [SKILL.md](SKILL.md) 中的工作流执行。
+
+## 开发
+
+```bash
+# 克隆仓库
+git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git
+cd {{SKILL_NAME}}
+
+# 编辑 SKILL.md 定义行为协议
+# 编辑 references/ 添加参考资料
+# 编辑 test-prompts.json 添加测试用例
+```
+
+## 许可证
+
+[MIT](LICENSE) © 2026 {{SKILL_AUTHOR}}

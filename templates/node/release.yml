@@ -1,0 +1,71 @@
+# Node/TS Release：tag (v*) → build → 打包 tgz → GitHub Release → 条件发布 npm
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build + pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg
+          path: |
+            *.tgz
+            dist/**
+
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pkg
+          path: pkg
+      - name: Create Release with tgz
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: pkg/*.tgz
+
+  # 仅当配置了 NPM_TOKEN 才发布到 npm；否则跳过，不报错。
+  publish-npm:
+    name: Publish to npm (条件)
+    needs: github-release
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    if: ${{ env.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}

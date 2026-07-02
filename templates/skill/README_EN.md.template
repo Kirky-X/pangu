@@ -1,0 +1,49 @@
+# {{SKILL_NAME}} — {{SKILL_DESCRIPTION}}
+
+[![GitHub Release](https://img.shields.io/github/v/release/{{SKILL_AUTHOR}}/{{SKILL_NAME}}?style=flat-square)](https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}/releases)
+[![GitHub License](https://img.shields.io/github/license/{{SKILL_AUTHOR}}/{{SKILL_NAME}}?style=flat-square)](LICENSE)
+
+{{SKILL_DESCRIPTION}}
+
+## Features
+
+- **Skill behavior protocol**: defines agent behavior constraints and output specs for specific scenarios
+- **Reference assets**: `references/` directory holds deep reference materials
+- **specmark-driven changes**: `specmark/` directory manages spec-driven change workflow
+- **Automated release**: tag-triggered GitHub Release workflow
+
+## Installation
+
+### Method 1: Via `skills` package (recommended)
+
+Requires [Node.js](https://nodejs.org/) 18+ and the `skills` npm package (v1.5.12+).
+
+```bash
+npx skills install {{SKILL_AUTHOR}}/{{SKILL_NAME}}
+```
+
+### Method 2: Manual clone
+
+```bash
+git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git ~/.claude/skills/{{SKILL_NAME}}
+```
+
+## Usage
+
+After loading this skill, follow the workflow in [SKILL.md](SKILL.md).
+
+## Development
+
+```bash
+# Clone the repo
+git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git
+cd {{SKILL_NAME}}
+
+# Edit SKILL.md to define the behavior protocol
+# Edit references/ to add reference materials
+# Edit test-prompts.json to add test cases
+```
+
+## License
+
+[MIT](LICENSE) © 2026 {{SKILL_AUTHOR}}

@@ -1,0 +1,50 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - { os: linux, runner: ubuntu-latest, stage: app-linux }
+          - { os: macos, runner: macos-latest, stage: app-macos }
+          - { os: windows, runner: windows-latest, stage: app-windows.exe }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p staging
+          bin="${{ matrix.stage }}"
+          found=""
+          for p in build/app build/Release/app.exe build/Release/app build/app.exe; do
+            [ -f "$p" ] && { cp "$p" "staging/$bin"; found=1; break; }
+          done
+          [ -n "$found" ] || { echo "binary not found, packing build dir"; tar -czf "staging/build-${bin}.tgz" build; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.os }}
+          path: staging
+  github-release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+          pattern: artifact-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: staging/*

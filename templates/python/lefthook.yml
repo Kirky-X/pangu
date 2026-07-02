@@ -1,0 +1,25 @@
+# lefthook 配置。启用: brew install lefthook && lefthook install
+# 与 .pre-commit-config.yaml 功能等价，二选一即可。
+pre-commit:
+  parallel: true
+  commands:
+    ruff-format:
+      glob: "*.py"
+      run: uv run ruff format --check
+    ruff-check:
+      glob: "*.py"
+      run: uv run ruff check
+    mypy:
+      glob: "*.py"
+      run: uv run mypy src
+    bandit:
+      run: uv run bandit -c pyproject.toml -r src
+    pip-audit:
+      run: uv run pip-audit
+    no-private-key:
+      run: "! git diff --cached --name-only | xargs -r grep -IlE 'BEGIN (RSA|OPENSSH|PGP|EC|PRIVATE) PRIVATE KEY|sk-[A-Za-z0-9]{20,}'"
+
+commit-msg:
+  commands:
+    conventional:
+      run: 'grep -qE "^(feat|fix|refactor|docs|test|chore|perf|ci|build|revert|style)(\(.+\))?!?: .+" {1}'

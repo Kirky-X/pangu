@@ -1,0 +1,67 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-dotnet-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Quality (dotnet format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore
+      - name: Format check (no changes written)
+        run: dotnet format --verify-no-changes --severity warn
+  test:
+    name: Test + Coverage (≥80% line)
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore
+      - name: Build（触发 SecurityCodeScan 分析器，对应 .NET→Security Code Scan）
+        run: dotnet build --no-restore -warnaserror
+      - name: Test with cobertura coverage
+        run: dotnet test --no-build --collect:"XPlat Code Coverage" --logger "console;verbosity=normal"
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+      - name: Enforce 80% line coverage
+        run: |
+          REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)"
+          if [ -z "$REPORTPATH" ]; then echo "No cobertura report found"; exit 1; fi
+          reportgenerator -reports:"$REPORTPATH" -targetdir:coverage-report -reporttypes:Cobertura
+          LINERATE=$(grep -oE 'line-rate="[0-9.]+"' coverage-report/Cobertura.xml | head -1 | grep -oE '[0-9.]+')
+          echo "Line rate: $LINERATE"
+          awk -v r="$LINERATE" 'BEGIN{ exit (r+0 >= 0.80) ? 0 : 1 }'
+      - name: Upload coverage
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        run: |
+          REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)"
+          curl -s https://codecov.io/bash | bash -s -- -f "$REPORTPATH" || true
+  security:
+    name: Security (vulnerable packages + SCS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet restore
+      - name: SecurityCodeScan（编译期安全分析器，已通过 init-dotnet.sh dotnet add package SecurityCodeScan.VS2019 引入）
+        run: dotnet build --no-restore
+      - name: 已知漏洞依赖审计
+        run: dotnet list package --vulnerable --include-transitive || true

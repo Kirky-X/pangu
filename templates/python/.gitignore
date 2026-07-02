@@ -1,0 +1,36 @@
+# Python 字节码/构建
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg
+*.egg-info/
+.eggs/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试/覆盖率/缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.bandit/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+
+# 通用
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/
+*.log

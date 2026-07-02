@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "pluginRoot": "."
+  },
+  "plugins": [
+    {
+      "name": "{{SKILL_NAME}}",
+      "source": ".",
+      "skills": ["./"]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      run: 'test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }'
+    go-vet:
+      run: go vet ./...
+    golangci-lint:
+      run: golangci-lint run
+    govulncheck:
+      run: govulncheck ./...
+    go-mod-tidy:
+      run: go mod tidy && git diff --exit-code go.mod go.sum
+commit-msg:
+  commands:
+    conventional:
+      run: 'test "$(grep -cE ''^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+'' "$1")" = 1'

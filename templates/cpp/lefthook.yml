@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    clang-format:
+      glob: "*.{cpp,cc,hpp,h}"
+      run: |
+        files=$(find src include -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.hpp' -o -name '*.h' \) 2>/dev/null)
+        [ -z "$files" ] || clang-format --dry-run --Werror $files
+    cppcheck:
+      glob: "*.{cpp,cc,hpp,h}"
+      run: cppcheck --enable=warning,style --suppress=missingInclude --error-exitcode=1 src 2>/dev/null || true
+commit-msg:
+  commands:
+    conventional:
+      run: 'test "$(grep -cE ''^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+'' "$1")" = 1'

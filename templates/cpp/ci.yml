@@ -1,0 +1,57 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-cpp-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Quality (clang-format + cppcheck + flawfinder)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format clang-tidy cppcheck flawfinder
+      - name: clang-format check
+        run: |
+          mapfile -t files < <(find src include -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.hpp' -o -name '*.h' \) 2>/dev/null)
+          [ ${#files[@]} -eq 0 ] || clang-format --dry-run --Werror "${files[@]}"
+      - name: Configure (CMake, 导出 compile_commands.json)
+        run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: cppcheck（对应 C/C++→Cppcheck）
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+            --suppress=missingInclude --inline-suppr --inconclusive \
+            --error-exitcode=1 --project=build/compile_commands.json
+      - name: flawfinder（对应 C/C++→Flawfinder）
+        run: |
+          find src include -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.hpp' -o -name '*.h' \) -print0 \
+            | xargs -0 flawfinder -m 3 . || true
+  test:
+    name: Test + Coverage (≥80% line)
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gcovr
+        run: sudo apt-get update && sudo apt-get install -y gcovr
+      - name: Configure (Debug + coverage)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DAPP_ENABLE_COVERAGE=ON
+      - name: Build & Test
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+      - name: Enforce 80% line coverage
+        run: gcovr --fail-under-line 80 --print-summary || { echo "::error::Line coverage < 80%"; exit 1; }
+      - name: Upload coverage
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        run: |
+          gcovr --xml -o coverage.xml
+          curl -s https://codecov.io/bash | bash -s -- -f coverage.xml || true

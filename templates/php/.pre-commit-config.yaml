@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: php-cs-fixer
+        name: PHP-CS-Fixer
+        entry: php-cs-fixer fix --dry-run --using-cache=no --diff
+        language: system
+        files: \.php$
+        pass_filenames: false
+      - id: psalm
+        name: Psalm
+        entry: vendor/bin/psalm --no-cache
+        language: system
+        files: \.php$
+        pass_filenames: false
+      - id: composer-audit
+        name: composer audit
+        entry: composer audit
+        language: system
+        files: ^composer\.lock$
+        pass_filenames: false

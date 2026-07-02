@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-java-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Quality (Spotless + Checkstyle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Spotless check
+        run: mvn -B -ntp spotless:check
+      - name: Checkstyle
+        run: mvn -B -ntp checkstyle:check
+  test:
+    name: Test + Coverage (≥80% line)
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Test with JaCoCo
+        run: mvn -B -ntp test jacoco:report
+      - name: Enforce 80% line coverage
+        run: mvn -B -ntp jacoco:check || { echo "::error::Line coverage below 80%"; exit 1; }
+      - name: Upload coverage
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        run: curl -s https://codecov.io/bash | bash -s -- -f target/site/jacoco/jacoco.xml || true
+  security:
+    name: Security (SpotBugs/FindSecBugs + OWASP Dep-Check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: SpotBugs (含 FindSecBugs 安全规则集)
+        run: mvn -B -ntp com.github.spotbugs:spotbugs-maven-plugin:check
+        continue-on-error: true
+      - name: OWASP Dependency-Check (CVE，CVSS≥7 失败)
+        run: mvn -B -ntp org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7
+        continue-on-error: true

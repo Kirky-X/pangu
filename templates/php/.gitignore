@@ -1,0 +1,16 @@
+/vendor/
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage.xml
+/.php-cs-fixer.cache
+/build/
+/.psalm/
+/.idea/
+/.vscode/
+
+# composer.lock：应用提交，库按需。默认不忽略（如需忽略取消下一行注释）
+# composer.lock
+
+# OS
+.DS_Store
+Thumbs.db

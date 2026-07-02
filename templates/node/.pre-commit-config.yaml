@@ -1,0 +1,41 @@
+# pre-commit 配置（pre-commit framework）。启用: uv tool install pre-commit && pre-commit install
+# 与 lefthook.yml 功能等价，二选一即可。
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  # Prettier 格式化
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, json, css, markdown, yaml]
+
+  # ESLint（含 eslint-plugin-security，须在项目 .eslintrc 引入）
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (security)
+        entry: pnpm exec eslint
+        language: system
+        types: [javascript]
+        pass_filenames: true
+
+  # 依赖漏洞扫描
+  - repo: local
+    hooks:
+      - id: pnpm-audit
+        name: pnpm audit (依赖漏洞 high+)
+        entry: pnpm audit --prod --audit-level=high
+        language: system
+        files: "pnpm-lock.yaml"
+        pass_filenames: false

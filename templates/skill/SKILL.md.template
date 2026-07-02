@@ -1,0 +1,46 @@
+---
+name: {{SKILL_NAME}}
+description: "{{SKILL_DESCRIPTION}}"
+license: MIT
+---
+
+# {{SKILL_NAME_CN}} ({{SKILL_NAME}})
+
+{{SKILL_DESCRIPTION}}
+
+## TL;DR · 60 秒执行
+
+```
+1. 加载本 skill（agent 自动识别触发词）
+2. 按 Workflow 执行核心流程
+3. 验证产出符合 acceptance criteria
+4. 交付 + 证据闭环
+```
+
+## Workflow
+
+<!-- TODO: 按本 skill 的领域逻辑填充工作流 -->
+
+1. **阶段 1 · 意图确认**：复述需求，对齐目标
+2. **阶段 2 · 执行**：按本 skill 的核心方法论执行
+3. **阶段 3 · 验证**：跑验证命令贴输出证据
+4. **阶段 4 · 交付**：闭环 + 复盘
+
+## 核心原则
+
+1. **预存资产优先** — references/ 中的参考资料直接引用，不凭空生成
+2. **证据闭环** — 没有输出证据的完成叫自嗨
+3. **不臆测** — 调用未知脚本前先 Read 确认行为
+
+## 参考资产索引
+
+| 资产 | 路径 | 何时读 |
+| ---- | ---- | ------ |
+| 参考资料根 | `references/` | 按需 |
+| specmark 变更 | `specmark/` | spec-driven 变更 |
+| 测试用例 | `test-prompts.json` | 验证 skill 行为 |
+
+## Do NOT 触发本 skill 的场景
+
+- 简单事实查询 → 直接回答
+- 与本 skill 领域无关的任务 → 不触发

@@ -1,0 +1,10 @@
+{
+  "name": "{{SKILL_NAME}}",
+  "description": "{{SKILL_DESCRIPTION}}",
+  "license": "MIT",
+  "version": "0.1.0",
+  "author": "{{SKILL_AUTHOR}}",
+  "repo": "https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}",
+  "homepage": "https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}",
+  "tag": ["skill"]
+}

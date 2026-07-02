@@ -1,0 +1,23 @@
+{
+    "scripts": {
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:cov": "vitest run --coverage",
+        "build": "tsc -p tsconfig.json"
+    },
+    "prettier": {
+        "semi": true,
+        "singleQuote": true,
+        "trailingComma": "all",
+        "printWidth": 100,
+        "tabWidth": 2,
+        "arrowParens": "always",
+        "endOfLine": "lf"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

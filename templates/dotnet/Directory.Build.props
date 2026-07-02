@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  pangu: .NET 全局编译属性（应用于解决方案内所有项目）。
+  - Nullable/TreatWarningsAsErrors 提升类型与告警严格度
+  - AnalysisLevel latest + AnalysisMode Recommended 启用 .NET 分析器
+  - SecurityCodeScan.VS2019 包由 init-dotnet.sh 通过 dotnet add package 引入（不在 props 中重复引用，避免重复 ItemGroup）
+  - EnforceCodeStyleInBuild 让 .editorconfig 风格规则在编译期生效
+-->
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>

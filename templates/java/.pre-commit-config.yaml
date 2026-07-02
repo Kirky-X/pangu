@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-xml
+      - id: check-added-large-files
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: spotless
+        name: Spotless format check
+        entry: mvn -B -ntp -q spotless:check
+        language: system
+        files: \.java$
+        pass_filenames: false
+      - id: spotbugs
+        name: SpotBugs static analysis
+        entry: mvn -B -ntp -q spotbugs:check
+        language: system
+        files: \.java$
+        pass_filenames: false
+      - id: checkstyle
+        name: Checkstyle
+        entry: mvn -B -ntp -q checkstyle:check
+        language: system
+        files: \.java$
+        pass_filenames: false

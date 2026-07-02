@@ -1,0 +1,40 @@
+# 工具配置 snippet — 请把以下 [tool.*] 段【合并】进 uv 生成的 pyproject.toml，
+# 然后删除本文件。ruff / mypy / bandit / pytest / coverage 都会自动从 pyproject.toml 读取。
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+# E/W=pycodestyle F=pyflakes I=isort B=bugbear C4=comprehensions
+# UP=pyupgrade SIM=simplify S=bandit安全 RUF=ruff专属
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "S", "RUF"]
+ignore = [
+    "S101",   # 测试中允许 assert
+    "S603",   # subprocess 调用（已在代码层校验输入）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "D"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+files = ["src"]
+
+[tool.bandit]
+targets = ["src"]
+skips = ["B101"]   # 测试中的 assert
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

@@ -1,0 +1,13 @@
+pre-commit:
+  parallel: true
+  commands:
+    spotless:
+      run: mvn -B -ntp -q spotless:check
+    checkstyle:
+      run: mvn -B -ntp -q checkstyle:check
+    spotbugs:
+      run: mvn -B -ntp -q spotbugs:check
+commit-msg:
+  commands:
+    conventional:
+      run: 'test "$(grep -cE ''^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+'' "$1")" = 1'
