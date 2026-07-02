@@ -37,8 +37,10 @@ uv add --dev ruff mypy bandit pip-audit pytest pytest-cov || warn "uv add 失败
 # 工具配置（ruff/mypy/bandit/pytest/coverage）在 pyproject-tooling.toml
 # → 合并进 uv 生成的 pyproject.toml，合并后删除该 snippet 文件
 if [ -f "$PROJ_DIR/pyproject-tooling.toml" ]; then
-  warn "Python: 请把 pyproject-tooling.toml 的 [tool.*] 段合并到 pyproject.toml，然后删除该文件"
+  warn "Python: 检测到 pyproject-tooling.toml 未合并"
+  warn "  请将其 [tool.*] 段合并到 pyproject.toml，然后删除该文件"
   warn "  （ruff/mypy/bandit/pytest 自动从 pyproject.toml 读取配置）"
+  exit 1
 fi
 
 git_init

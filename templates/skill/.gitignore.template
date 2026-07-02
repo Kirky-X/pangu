@@ -1,6 +1,6 @@
 .claude
 .venv
-specmark
+specmark/changes/
 temp
 .gitnexus
 
