@@ -50,3 +50,8 @@ yarn-error.log*
 
 # 测试代码（开发期使用，不入仓库）
 scripts/**/tests/
+
+# Darwin skill 优化产物（开发期使用，不入仓库）
+results.tsv
+test-prompts.json
+darwin-result-card.png
