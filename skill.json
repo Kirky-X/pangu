@@ -2,9 +2,19 @@
   "name": "pangu",
   "description": "一键初始化工业级项目 harness（脚手架 + Git + GitHub CI 质量门禁 + Release 发布 + pre-commit/lefthook 双重检查 + 覆盖率门禁），覆盖 9 种语言。",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Kirky-X",
   "repo": "https://github.com/Kirky-X/pangu",
   "homepage": "https://github.com/Kirky-X/pangu",
-  "tag": ["project-init", "scaffold", "ci-cd", "pre-commit", "lefthook", "release", "coverage-gate", "harness", "multi-language"]
+  "tag": [
+    "project-init",
+    "scaffold",
+    "ci-cd",
+    "pre-commit",
+    "lefthook",
+    "release",
+    "coverage-gate",
+    "harness",
+    "multi-language"
+  ]
 }
