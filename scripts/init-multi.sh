@@ -29,6 +29,15 @@ for L in "${LANG_ARR[@]}"; do
   esac
 done
 
+# 重复检测（注释承诺"重复也拒"）— bash 3+ 兼容字符串匹配（不用 declare -A）
+_seen=""
+for L in "${LANG_ARR[@]}"; do
+  case " $_seen " in
+    *" $L "*) die "语言 '$L' 重复（主次同名无意义）。传入: $LANGS" ;;
+  esac
+  _seen="$_seen $L"
+done
+
 # 确定仓库根
 if [ -n "$ROOT_NAME" ]; then
   mkdir -p "$ROOT_NAME" && cd "$ROOT_NAME"

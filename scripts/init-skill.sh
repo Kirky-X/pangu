@@ -59,10 +59,6 @@ case "$SKILL_NAME" in
   *[!a-z-]*|[!a-z]*|-*) die "skill-name 必须全小写字母+连字符，且不以连字符开头/结尾（当前: '$SKILL_NAME'）" ;;
 esac
 
-case "$SKILL_NAME" in
-  -*) die "skill-name 不能以连字符开头" ;;
-esac
-
 [ "${SKILL_NAME: -1}" != "-" ] || die "skill-name 不能以连字符结尾"
 
 [ -n "$SKILL_NAME_CN" ] || SKILL_NAME_CN="$SKILL_NAME"

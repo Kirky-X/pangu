@@ -176,6 +176,8 @@ apply_ffi_harness() {
 
   git_init
   install_hooks
+  LANG_NAME="Rust+${bind_lang}"
+  harness_finalize
 }
 
 # harness_finalize_multi — 多语言并存 monorepo 收尾。

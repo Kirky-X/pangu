@@ -36,11 +36,19 @@ uv add --dev ruff mypy bandit pip-audit pytest pytest-cov || warn "uv add 失败
 
 # 工具配置（ruff/mypy/bandit/pytest/coverage）在 pyproject-tooling.toml
 # → 合并进 uv 生成的 pyproject.toml，合并后删除该 snippet 文件
+# （与 init-node.sh prettier.snippet.json 自动合并模式对齐）
 if [ -f "$PROJ_DIR/pyproject-tooling.toml" ]; then
-  warn "Python: 检测到 pyproject-tooling.toml 未合并"
-  warn "  请将其 [tool.*] 段合并到 pyproject.toml，然后删除该文件"
-  warn "  （ruff/mypy/bandit/pytest 自动从 pyproject.toml 读取配置）"
-  exit 1
+  if [ -f "$PROJ_DIR/pyproject.toml" ] && ! grep -q '^\[tool\.ruff\]' "$PROJ_DIR/pyproject.toml" 2>/dev/null; then
+    printf '\n# --- pangu tooling snippet（init-python.sh 自动合并）---\n' >> "$PROJ_DIR/pyproject.toml"
+    cat "$PROJ_DIR/pyproject-tooling.toml" >> "$PROJ_DIR/pyproject.toml"
+    rm "$PROJ_DIR/pyproject-tooling.toml"
+    ok "pyproject-tooling.toml 已合并到 pyproject.toml"
+  elif [ -f "$PROJ_DIR/pyproject.toml" ] && grep -q '^\[tool\.ruff\]' "$PROJ_DIR/pyproject.toml" 2>/dev/null; then
+    warn "pyproject.toml 已含 [tool.ruff]，跳过 snippet 合并（疑似重复 init）"
+    rm "$PROJ_DIR/pyproject-tooling.toml"
+  else
+    warn "pyproject.toml 不存在（uv init 异常），保留 pyproject-tooling.toml 作参考"
+  fi
 fi
 
 git_init

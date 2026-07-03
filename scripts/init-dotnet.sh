@@ -9,17 +9,21 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 LANG_NAME=".NET"
 require_cmd dotnet
 
-PROJ_NAME="${1:-app}"
+PROJ_NAME="${1:-}"
 KIND="${2:-console}"
 case "$KIND" in
   console|classlib|web) ;;
   *) die "第二参数 kind 须为 console | classlib | web（默认 console）" ;;
 esac
 
-mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"
+if [ -n "$PROJ_NAME" ]; then
+  mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"
+fi
 PROJ_DIR="$(pwd)"
 
-dotnet new "$KIND" -n "$PROJ_NAME" -o . >/dev/null 2>&1 \
+# 不带参数时用当前目录名作项目名（与 init-go.sh MODULE 默认值 github.com/$(whoami)/$(basename "$PROJ_DIR") 惯例一致）
+_name="${PROJ_NAME:-$(basename "$PROJ_DIR")}"
+dotnet new "$KIND" -n "$_name" -o . >/dev/null 2>&1 \
   || dotnet new "$KIND" >/dev/null 2>&1 \
   || die "dotnet new $KIND 失败"
 log ".NET 脚手架已生成 (dotnet new $KIND)"

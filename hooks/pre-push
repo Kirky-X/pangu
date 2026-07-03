@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# pangu pre-push hook: push 前自动 git gc + cargo clean
+# 设计原则：清理失败不阻止 push（只警告），保证 push 流程不被阻塞
+# 启用方式：git config core.hooksPath hooks（已由项目配置完成）
+
+set -uo pipefail
+
+# 切到仓库根目录（hook 执行时工作区可能不在根）
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$REPO_ROOT" 2>/dev/null || exit 0
+
+echo "[pre-push] 开始清理..."
+
+# 1. git gc: 压缩本地仓库，让 push 传输更高效
+if command -v git >/dev/null 2>&1; then
+    echo "[pre-push] 执行 git gc..."
+    if git gc 2>&1 | sed 's/^/[git-gc] /'; then
+        echo "[pre-push] git gc 完成"
+    else
+        echo "[pre-push] warning: git gc 失败（不阻止 push）"
+    fi
+fi
+
+# 2. cargo clean: 删除 target/ 释放磁盘空间
+#    条件执行：仅当 Cargo.toml 存在且 cargo 命令可用时执行
+#    pangu 当前非 Rust 项目，会跳过；未来若引入 Rust 依赖自动生效
+if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
+    echo "[pre-push] 执行 cargo clean..."
+    if cargo clean 2>&1 | sed 's/^/[cargo] /'; then
+        echo "[pre-push] cargo clean 完成"
+    else
+        echo "[pre-push] warning: cargo clean 失败（不阻止 push）"
+    fi
+else
+    echo "[pre-push] 跳过 cargo clean（无 Cargo.toml 或 cargo 未安装）"
+fi
+
+echo "[pre-push] 清理完成，继续 push"
+exit 0

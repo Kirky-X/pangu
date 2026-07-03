@@ -1,6 +1,7 @@
 .claude
 .venv
 openspec/
+specmark/
 temp
 .gitnexus
 
@@ -46,3 +47,6 @@ yarn-error.log*
 
 # Meta
 .meta
+
+# 测试代码（开发期使用，不入仓库）
+scripts/**/tests/

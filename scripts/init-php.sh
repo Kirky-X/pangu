@@ -19,7 +19,7 @@ PROJ_DIR="$(pwd)"
 composer init --no-interaction \
   --type=project \
   --license=MIT \
-  --name="$(whoami)/$(basename "$PROJ_DIR" | tr '[:upper:]' '[:lower:]')" \
+  --name="$(whoami | tr '[:upper:]' '[:lower:]')/$(basename "$PROJ_DIR" | tr '[:upper:]' '[:lower:]')" \
   >/dev/null 2>&1 || composer init --no-interaction >/dev/null 2>&1 \
   || die "composer init 失败"
 log "PHP 脚手架已生成 (composer init)"
