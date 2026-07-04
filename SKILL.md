@@ -87,6 +87,17 @@ bash <skill>/scripts/align-skill.sh <skill-dir> [--dry-run] [--fix]
 
 ---
 
+## Skill 仓库发版（命令式 SOP）
+
+init-skill.sh 完成 skill 仓库初始化后，发版时按 `references/skill-release.md` 6 步骤 SOP 执行：set version → propagate → changelog → validate → commit & push → tag & publish。版本号传播用 `scripts/bump-skill-version.sh <v>` 自动同步所有 manifest + README badge，与 `templates/skill/.github/workflows/release.yml.template` 的 tag 触发 CI 自动化互补。
+
+| 资产 | 路径 | 用途 |
+| --- | --- | --- |
+| 发版 SOP | `references/skill-release.md` | 6 步骤命令式流程 |
+| 版本号传播脚本 | `scripts/bump-skill-version.sh` | 同步 manifest version + README badge |
+
+---
+
 ## 混合项目路由（多语言）
 
 单语言走上表 `init-{L}.sh`。项目含多于一种语言时按形态选：

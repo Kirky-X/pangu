@@ -153,7 +153,9 @@ cat <<EOF
   6. 首次提交:
        cd $PROJ_DIR
        git commit -m "chore: bootstrap skill repo"
-  7. 推 tag 触发 release:
+  7. 发版前：按 references/skill-release.md 跑 6 步骤 SOP
+       （版本号传播用 scripts/bump-skill-version.sh <v>）
+  8. 推 tag 触发 release:
        git tag v0.1.0 && git push --tags
 
 对齐存量 skill 仓库用: bash $SKILL_DIR/scripts/align-skill.sh $PROJ_DIR --dry-run
