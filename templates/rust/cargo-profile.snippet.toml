@@ -1,0 +1,8 @@
+# pangu: release 编译优化片段（由 init-rust.sh 自动追加到 Cargo.toml 末尾，追加后删除本文件）。
+# 社区 release 标配：减体积 + 提速 + 可复现构建。
+# 取舍说明见 references/build-optimization.md。
+[profile.release]
+lto = "thin"           # 链接时优化：体积 -15% / 速度 +10-25%（thin 比 fat 编译快很多，收益接近）
+codegen-units = 1      # 单代码生成单元：最优代码生成（牺牲约 30% 编译时间换运行性能）
+strip = "symbols"      # 去 symbol table：二进制体积 -30%（不影响 backtrace 的 addr2line 解析）
+panic = "abort"        # 不展开：体积 -10% + 提速。⚠️ library 项目建议删此行（依赖它的 binary 将无法 catch panic 续跑）

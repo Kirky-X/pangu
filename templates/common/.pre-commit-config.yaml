@@ -1,0 +1,25 @@
+# pangu 通用 pre-commit 配置（项目级，跨语言适用）。
+#
+# 与各语言专属模板（templates/<lang>/.pre-commit-config.yaml）的关系：
+#   - 各语言模板含该语言的 lint/format/SCA hook（cargo-clippy / eslint / go-vet …）
+#   - 本文件提供 shell 脚本静态门禁（shellcheck），对所有项目通用
+#   - 用法二选一：
+#       a) 项目仅需 shell 门禁 → 直接用本文件
+#       b) 项目要全套语言 hook → 把本文件的 shellcheck 段语义合并进语言专属配置
+#
+# 启用: uv tool install pre-commit && pre-commit install
+# 依赖: 系统已装 shellcheck（apt install shellcheck / brew install shellcheck）
+#       未装时 pre-commit 会提示 language: system 找不到 entry——装上即可，无需改配置。
+repos:
+  # Shell 脚本静态检查（pangu 自身脚本 + 用户项目 shell 脚本门禁）
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck（shell 脚本静态门禁）
+        description: 静态检查 bash/sh 语法与常见陷阱（SC 错误码）
+        entry: shellcheck
+        language: system
+        types: [shell]
+        # SC1090/SC1091: source/require 路径含变量（如 source "$(dirname ...)/_common.sh"），
+        # shellcheck 无法静态追踪外部文件——pangu 脚本普遍如此，排除这两条避免误报。
+        args: ["-e", "SC1090", "-e", "SC1091"]

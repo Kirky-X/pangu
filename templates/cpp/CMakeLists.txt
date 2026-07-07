@@ -10,7 +10,10 @@ option(APP_ENABLE_COVERAGE "Enable code coverage instrumentation (--coverage)" O
 option(APP_ENABLE_CLANG_TIDY "Run clang-tidy during build" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+  # 默认 Release：隐含 -O3 -DNDEBUG（优化体积与速度）。
+  # 调试用：cmake -DCMAKE_BUILD_TYPE=Debug .. （含 -g -O0，配合 gdb/lldb/delve）
+  # 覆盖率用：cmake -DAPP_ENABLE_COVERAGE=ON .. （下方 -O0 -g --coverage 会覆盖 -O3）
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
 if(APP_ENABLE_CLANG_TIDY)
