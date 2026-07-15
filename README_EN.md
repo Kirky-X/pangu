@@ -1,7 +1,8 @@
 # Pangu (盘古) — Industrial-Grade Project Init Skill
 
-[![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases)
-[![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
+[中文](README.md)
+
+[![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
 
 Pangu is an industrial-grade project initialization skill for AI agents. It turns an empty directory into a production-grade project with **complete quality guardrails**: language scaffolding + Git + GitHub CI quality gates + tag-triggered Release workflow + local pre-commit/lefthook dual industrial checks + coverage gate (industry baseline 80%).
 

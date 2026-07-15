@@ -1,7 +1,8 @@
 # Pangu (盘古) —— 工业级项目初始化技能
 
-[![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases)
-[![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
+[English](README_EN.md)
+
+[![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
 
 Pangu 是一个面向 AI agent 的工业级项目初始化 skill，把一个空目录变成带**完整质量护栏**的生产级项目：语言脚手架 + Git + GitHub CI 质量门禁 + tag 触发的 Release 发布工作流 + 本地 commit 前 pre-commit/lefthook 双重工业级检查 + 覆盖率门禁（行业底线 80%）。
 
