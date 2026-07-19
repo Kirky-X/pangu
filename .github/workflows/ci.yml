@@ -1,0 +1,211 @@
+# Pangu 自身质量门禁：shellcheck / yamllint / prettier / 模板完整性 / skill.json 校验
+# 参考: actions/checkout 的 test.yml 工程实践（适配 skill 仓库特性）
+#
+# 设计原则：
+# - 职责分离：lint job（格式+语法）与 integrity job（内容校验）并行
+# - 渐进式阻断：shellcheck 仅 error 阻断（warning 历史债暂不阻断）；JSON 严格阻断；Markdown 历史格式 warning-only
+# - 供应链安全：所有 actions 使用 SHA pin + 版本注释（Dependabot 自动升级）
+name: CI
+
+on:
+  push:
+    branches: [main, master]  # 同时支持 main 和历史 master 分支
+  pull_request:
+
+permissions:
+  contents: read
+
+# concurrency 统一用 workflow 名 + ref，避免重复运行（PR 推送取消旧 run）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: shellcheck + yamllint + prettier
+    runs-on: ubuntu-latest
+    steps:
+      # SHA pin 策略：与 release.yml 一致，所有 actions 用 commit SHA + 版本注释
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      # Shellcheck：检查所有 .sh 脚本（含 templates/ 中的脚本片段）
+      # -S error：仅 error 级别失败（warning/info 不阻断，保留输出可见）
+      #   渐进式策略：历史 warning（SC2155/SC2164/SC2034 等）暂不阻断，新引入 error 会卡
+      # -P SCRIPTDIR：让 shellcheck 能解析 source 路径
+      - name: Shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t shells < <(find . -type f -name '*.sh' -not -path './.git/*')
+          if [ "${#shells[@]}" -eq 0 ]; then
+            echo "No shell scripts found"
+            exit 0
+          fi
+          printf '%s\n' "${shells[@]}"
+          shellcheck -S error -P SCRIPTDIR "${shells[@]}"
+
+      # Yamllint：检查所有 yaml/yml（含 templates/）
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.x'
+          cache: pip
+          cache-dependency-path: .github/requirements-ci.txt
+
+      - name: Install yamllint
+        run: pip install -r .github/requirements-ci.txt
+
+      - name: Yamllint
+        run: |
+          set -euo pipefail
+          mapfile -t yamls < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) -not -path './.git/*')
+          if [ "${#yamls[@]}" -eq 0 ]; then
+            echo "No YAML files found"
+            exit 0
+          fi
+          printf '%s\n' "${yamls[@]}"
+          # 使用 .github/yamllint-ci.yml 配置（禁用 braces/brackets 避免误判 Actions 表达式）
+          yamllint -c .github/yamllint-ci.yml "${yamls[@]}"
+
+      # Prettier：检查 pangu 自身的 markdown/json 格式
+      # - JSON 严格阻断；Markdown 因历史表格格式暂用 warning-only（continue-on-error）
+      # - pin 版本 3.3.3 避免不同 CI run 拉取不同版本导致格式判断不一致
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: .github/package-ci.json
+
+      - name: Install prettier
+        run: |
+          cd .github && npm ci
+
+      # JSON 严格检查（阻断）
+      - name: Prettier check (JSON, blocking)
+        run: |
+          set -euo pipefail
+          mapfile -t jsons < <(find . -maxdepth 1 -type f -name '*.json' -not -name 'package-lock.json')
+          if [ "${#jsons[@]}" -eq 0 ]; then
+            echo "No JSON files found"
+            exit 0
+          fi
+          printf '%s\n' "${jsons[@]}"
+          npx --prefix .github prettier --check "${jsons[@]}"
+
+      # Markdown 检查（warning-only，历史表格格式暂不阻断）
+      - name: Prettier check (Markdown, non-blocking)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mapfile -t mds < <(find . -maxdepth 1 -type f -name '*.md')
+          for d in references hooks; do
+            [ -d "$d" ] && mapfile -t -O "${#mds[@]}" mds < <(find "$d" -type f -name '*.md')
+          done
+          if [ "${#mds[@]}" -eq 0 ]; then
+            echo "No Markdown files found"
+            exit 0
+          fi
+          printf '%s\n' "${mds[@]}"
+          # --prose-wrap preserve: 保留中文 markdown 换行
+          npx --prefix .github prettier --prose-wrap preserve --check "${mds[@]}"
+
+  integrity:
+    name: 模板完整性 + skill.json 校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      # 拆分为 5 个独立 step，便于 GitHub UI 定位失败
+      - name: Verify 9 language templates
+        run: |
+          set -euo pipefail
+          for lang in rust python node java go cpp ruby php dotnet; do
+            for f in ci.yml release.yml lefthook.yml .pre-commit-config.yaml .gitignore; do
+              path="templates/$lang/$f"
+              [ -f "$path" ] || { echo "MISSING: $path"; exit 1; }
+            done
+            echo "  OK $lang"
+          done
+
+      - name: Verify common templates
+        run: |
+          set -euo pipefail
+          for f in \
+            github/workflows/codeql.yml \
+            github/dependabot.yml \
+            github/CODEOWNERS \
+            github/ISSUE_TEMPLATE/bug.md \
+            github/ISSUE_TEMPLATE/feature.md \
+            github/ISSUE_TEMPLATE/question.md \
+            github/PULL_REQUEST_TEMPLATE.md \
+            .editorconfig \
+            .pre-commit-config.yaml \
+            LICENSE-MIT \
+            Dockerfile; do
+            [ -f "templates/common/$f" ] || { echo "MISSING: templates/common/$f"; exit 1; }
+          done
+          echo "  OK common"
+
+      - name: Verify skill templates
+        run: |
+          set -euo pipefail
+          for f in \
+            .github/workflows/release.yml.template \
+            .gitignore.template \
+            README.md.template \
+            README_EN.md.template \
+            SKILL.md.template \
+            skill.json.template \
+            test-prompts.json.template \
+            LICENSE.template \
+            .claude-plugin/marketplace.json.template; do
+            [ -f "templates/skill/$f" ] || { echo "MISSING: templates/skill/$f"; exit 1; }
+          done
+          echo "  OK skill"
+
+      - name: Verify 9 init scripts (executable)
+        run: |
+          set -euo pipefail
+          for lang in rust python node java go cpp ruby php dotnet; do
+            [ -f "scripts/init-$lang.sh" ] || { echo "MISSING: scripts/init-$lang.sh"; exit 1; }
+            [ -x "scripts/init-$lang.sh" ] || { echo "NOT EXECUTABLE: scripts/init-$lang.sh"; exit 1; }
+          done
+          for f in init-multi.sh init-rust-pyo3.sh init-rust-napi.sh install-hooks.sh _common.sh init-skill.sh; do
+            [ -f "scripts/$f" ] || { echo "MISSING: scripts/$f"; exit 1; }
+          done
+          echo "  OK init scripts"
+
+      # skill.json 校验：JSON 语法 + 必填字段
+      - name: Validate skill.json
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, sys
+          with open('skill.json') as f:
+              data = json.load(f)
+          required = ['name', 'description', 'license', 'version', 'author', 'tag']
+          missing = [k for k in required if k not in data or not data[k]]
+          if missing:
+              print(f"MISSING required fields: {missing}", file=sys.stderr)
+              sys.exit(1)
+          if not isinstance(data['tag'], list) or not data['tag']:
+              print("ERROR: tag must be a non-empty list", file=sys.stderr)
+              sys.exit(1)
+          print(f"  OK skill.json (name={data['name']}, version={data['version']})")
+          PY
+
+      # 引用一致性：SKILL.md 中提到的脚本必须实际存在
+      - name: Verify SKILL.md script references
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, os, sys
+          with open('SKILL.md') as f:
+              content = f.read()
+          refs = set(re.findall(r'\b(init-[a-z0-9-]+\.sh|install-hooks\.sh|_common\.sh)\b', content))
+          missing = [r for r in refs if not os.path.isfile(f'scripts/{r}')]
+          if missing:
+              print(f"SKILL.md references non-existent scripts: {missing}", file=sys.stderr)
+              sys.exit(1)
+          print(f"  OK All {len(refs)} script references in SKILL.md exist")
+          PY

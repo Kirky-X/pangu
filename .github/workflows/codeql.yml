@@ -1,0 +1,60 @@
+# CodeQL 静态安全分析（GitHub 原生，跨语言自动检测）
+# 参考: actions/checkout 的 codeql-analysis.yml + pangu 自身 templates/common/github/workflows/codeql.yml
+# 触发: push 到主分支 / PR / 每周二定时全量扫描
+# 无需额外 secret：使用自动注入的 GITHUB_TOKEN
+#
+# H3 决策注释（安全 trade-off）：
+# CodeQL 对编译型语言（Java/C#/Go/C++）覆盖最深入；对 shell/yaml 仅基础规则覆盖。
+# pangu 仓库主体是 shell + yaml 模板，CodeQL 检测能力有限，但仍保留理由：
+#   1) templates/ 下含 python 脚本片段（init-multi.sh 调用 python3）— CodeQL python 规则可覆盖
+#   2) GitHub 原生集成 + Security tab 可视化 + 0 维护成本
+#   3) 与 ci.yml 的 shellcheck/yamllint 互补（CodeQL 查数据流/污点追踪，lint 查语法）
+#   4) 未来若新增编译型语言模板（rust/go），CodeQL 自动扩展覆盖
+# 已权衡 trade-off 后决定保留，不强求覆盖所有 shell 注入场景（shellcheck 已兜底）
+name: CodeQL
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: "37 4 * * 2"  # 每周二 04:37 UTC（避开整点降低 CI 负载）
+
+permissions:
+  contents: read
+  security-events: write  # 上传 SARIF 到 Security 标签页
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      # L1 修复：fail-fast 注释说明
+      # 单一 job（autodetect），无 matrix 维度可 fail-fast。
+      # 保留 fail-fast: false 是显式声明：即使未来加 matrix 也不允许一个语言失败影响其他语言分析。
+      # 避免单语言 autobuild 失败（如新增未支持语言）连带拖垮整次扫描。
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      # 不传 languages → CodeQL 自动检测仓库语言
+      # H1 修复：3 处 codeql-action SHA pin 到 v3.32.0（init/autobuild/analyze 统一版本）
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@fbcef3fba75224ed6476919775448de80b23cb15  # v3.32.0
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@fbcef3fba75224ed6476919775448de80b23cb15  # v3.32.0
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@fbcef3fba75224ed6476919775448de80b23cb15  # v3.32.0
+        with:
+          category: "/language:autodetect"

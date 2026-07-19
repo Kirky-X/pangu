@@ -1,0 +1,35 @@
+# Dependabot 依赖更新（GitHub 原生）
+# 参考: actions/checkout 的 dependabot.yml
+# Pangu 是 shell + yaml 模板仓库，仅需监控 GitHub Actions 版本
+#
+# 安全策略：
+# - M1 修复：cooldown 防依赖投毒（新版本发布后等 7 天再开 PR，给社区发现 backdoor 的时间）
+# - M4 修复：major 升级独立 label 便于 reviewer 重点关注（major 跨版本可能有 breaking change）
+# - minor/patch 分组开 PR 减少 noise；major 单独开 PR 强制人工审查
+version: 2
+
+updates:
+  # 1) GitHub Actions 版本监控（weekly，按 minor/patch 分组，major 单独审）
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, github-actions]
+    # M1 修复：cooldown 防依赖投毒
+    # default-7-days: 所有更新发布后至少等 7 天才开 PR
+    # semver-major-14-days: major 升级等 14 天（更保守，因为 major 更可能引入 breaking/backdoor）
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      minor-actions-dependencies:
+        # 仅分组 minor/patch，major 单独审（M4 修复：major label 区分）
+        update-types: [minor, patch]
+    # M4 修复：major 升级独立 label 便于 reviewer 重点关注
+    # Dependabot 不支持条件 label，但通过 groups 不含 major 即可让 major PR 走默认 labels
+    # 默认 labels 已含 [dependencies, github-actions]，reviewer 看到非 grouped PR 即知是 major
+    commit-message:
+      prefix: "ci(deps)"
+      include: scope

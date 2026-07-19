@@ -1,3 +1,10 @@
+# Release 工作流：tag 触发 → 发布门禁 → 打包 .skill → 校验 → GitHub Release
+# 参考: actions/checkout 的 release 实践 + pangu 自身 templates/skill/.github/workflows/release.yml.template
+#
+# 设计原则：
+# - 发布门禁（规则19）：tag 对应 commit 必须先通过 CI + CodeQL，否则阻断发布
+# - DRY：归档排除列表与 skill 名通过 env 单一来源管理，避免多处复制粘贴
+# - 供应链安全：所有 actions SHA pin + 版本注释
 name: Release
 
 on:
@@ -7,39 +14,173 @@ on:
 
 permissions:
   contents: write
+  actions: read  # 发布门禁查询 CI/CodeQL run 状态需要
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: false  # release 不允许中途取消，避免产物损坏
+
+# 工作流级 env：DRY 单一来源
+# SKILL_NAME：归档文件名（与仓库名一致）
+# EXCLUDE_PATTERNS：zip 排除列表，pack 与 verify step 共享
+env:
+  SKILL_NAME: ${{ github.event.repository.name }}
+  EXCLUDE_PATTERNS: |
+    .git/*
+    .github/*
+    .gitignore
+    .gitattributes
+    specmark/*
+    logs/*
+    */__pycache__/*
+    *.pyc
+    .claude/*
+    .claude-plugin/*
+    .trae/*
+    .mimocode/*
+    node_modules/*
+    .venv/*
 
 jobs:
-  create-release:
-    name: Create Release
+  # C1 修复：发布门禁 — 校验 tag 对应 commit 上 CI 与 CodeQL 均 success
+  # 防止在失败代码上打 tag 发布（用户规则19：发布前强制审查）
+  # 失败原因（无 success run）将在 step 输出中显式展示，不藏默认值后
+  verify-gate:
+    name: Verify CI & CodeQL passed
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0  # 需要 git 历史以解析 tag → commit SHA
 
+      - name: Verify CI & CodeQL success on tag commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          COMMIT_SHA=$(git rev-list -n 1 "${GITHUB_REF}")
+          echo "Tag commit: ${COMMIT_SHA}"
+          FAILED=0
+          for wf in ci.yml codeql.yml; do
+            echo "=== Checking ${wf} ==="
+            # 查询该 commit 上是否有 success 状态的 workflow run
+            RUN_ID=$(gh run list \
+              --workflow="${wf}" \
+              --commit="${COMMIT_SHA}" \
+              --status=success \
+              --limit=1 \
+              --json databaseId \
+              --jq '.[0].databaseId // empty' 2>/dev/null || echo "")
+            if [ -z "${RUN_ID}" ]; then
+              echo "ERROR: No successful ${wf} run found for commit ${COMMIT_SHA}"
+              echo "Please ensure CI and CodeQL workflows pass on the tagged commit before release."
+              FAILED=1
+            else
+              echo "✓ ${wf} run ${RUN_ID} succeeded on ${COMMIT_SHA}"
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            exit 1
+          fi
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: verify-gate  # 门禁通过后才允许打包发布
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      # 前置校验：tag 版本必须与 skill.json 版本一致
+      - name: Verify tag matches skill.json version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"  # e.g. v0.1.3
+          VERSION="${TAG#v}"
+          SKILL_VERSION=$(python3 -c "import json; print(json.load(open('skill.json'))['version'])")
+          if [ "$VERSION" != "$SKILL_VERSION" ]; then
+            echo "ERROR: tag ($VERSION) != skill.json version ($SKILL_VERSION)"
+            exit 1
+          fi
+          echo "✓ tag $TAG matches skill.json version $SKILL_VERSION"
+
+      # 打包 skill 归档（.skill）
+      # M2 修复：排除列表从 env 单一来源读取（DRY），pack 与 verify 不再各自硬编码
       - name: Pack skill archive (.skill)
         shell: bash
         run: |
           set -euo pipefail
-          SKILL_NAME="${GITHUB_REPOSITORY##*/}"
           OUT="${SKILL_NAME}.skill"
-          zip -r "$OUT" . \
-            -x '.git/*' \
-            -x '.github/*' \
-            -x '.gitignore' \
-            -x 'specmark/*' \
-            -x 'logs/*' \
-            -x '*/__pycache__/*' \
-            -x '*.pyc'
+          # 从 EXCLUDE_PATTERNS 构造 zip -x 参数
+          EXCLUDE_ARGS=()
+          while IFS= read -r pattern; do
+            [ -z "$pattern" ] && continue
+            EXCLUDE_ARGS+=(-x "$pattern")
+          done <<< "${EXCLUDE_PATTERNS}"
+
+          zip -r "$OUT" . "${EXCLUDE_ARGS[@]}"
           echo "packed ${OUT}"
           ls -lh "$OUT"
 
+      # 产物校验：归档必须包含核心文件
+      - name: Verify archive contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="${SKILL_NAME}.skill"
+          echo "=== Archive contents ==="
+          unzip -l "$OUT"
+          # 校验核心文件存在
+          for f in SKILL.md README.md skill.json LICENSE; do
+            if ! unzip -l "$OUT" | grep -q " $f$"; then
+              echo "ERROR: $f not found in archive"
+              exit 1
+            fi
+          done
+          # 校验核心目录存在
+          for d in scripts templates; do
+            if ! unzip -l "$OUT" | grep -q "${d}/"; then
+              echo "ERROR: ${d}/ directory not found in archive"
+              exit 1
+            fi
+          done
+          echo "✓ Archive contains all required files"
+
+      # 计算 SHA256 校验和
+      - name: Generate SHA256 checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="${SKILL_NAME}.skill"
+          sha256sum "$OUT" > "${OUT}.sha256"
+          echo "=== SHA256 ==="
+          cat "${OUT}.sha256"
+
+      # 创建 GitHub Release
+      # H1 修复：softprops/action-gh-release SHA pin 到 v2.6.2
+      # M5 修复：body 中加入 SHA256 校验和验证说明
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
         with:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          files: ${{ github.event.repository.name }}.skill
+          body: |
+            ## 完整性校验
+
+            下载 `${{ env.SKILL_NAME }}.skill.sha256` 后用以下命令验证归档完整性：
+
+            ```bash
+            sha256sum -c ${{ env.SKILL_NAME }}.skill.sha256
+            ```
+
+            期望输出：`${{ env.SKILL_NAME }}.skill: OK`
+
+            ## 发布门禁
+
+            本 release 已通过以下审查（规则19 强制）：
+            - **CI workflow**：shellcheck / yamllint / prettier / 模板完整性 / skill.json 校验
+            - **CodeQL 静态安全扫描**：跨语言 SAST
+          files: |
+            ${{ env.SKILL_NAME }}.skill
+            ${{ env.SKILL_NAME }}.skill.sha256

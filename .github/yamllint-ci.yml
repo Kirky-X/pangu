@@ -1,0 +1,26 @@
+# Yamllint CI 配置（pangu 自身 + 模板）
+# 专为含 GitHub Actions ${{ }} 表达式 + 模板占位符 {{}} 的场景设计
+# 禁用 braces/brackets：避免误判 Actions 表达式 ${{ ... }}
+extends: default
+rules:
+  line-length: disable
+  document-start: disable
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+  # L4 修复：truthy check-keys 注释说明
+  # check-keys: false 因为 GitHub Actions 的 'on:' 键是字符串字面量（触发器配置），
+  # 但 yamllint 默认会将 'on' 解析为 YAML 1.1 boolean true（Python yaml.safe_load 行为），
+  # 触发 "inappropriate value" error。
+  # 同样 schedule/on/branches 等键在 Actions 上下文中都是字符串语义，不是 boolean。
+  # 关闭此规则避免对所有 workflow 文件误报。
+  truthy:
+    check-keys: false
+  comments:
+    require-starting-space: false
+  comments-indentation: disable
+  empty-lines:
+    max: 2
+  new-line-at-end-of-file: disable
+  braces: disable
+  brackets: disable
