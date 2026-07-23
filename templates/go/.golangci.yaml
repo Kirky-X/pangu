@@ -8,7 +8,7 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gosec # 安全审查（对应 Go→Gosec）
+    - gosec  # 安全审查（对应 Go→Gosec）
     - revive
     - gocritic
     - misspell

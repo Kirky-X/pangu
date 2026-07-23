@@ -9,11 +9,11 @@ on:
   pull_request:
     branches: [main, master]
   schedule:
-    - cron: "37 4 * * 2" # 每周二 04:37 UTC（避开整点）
+    - cron: "37 4 * * 2"  # 每周二 04:37 UTC（避开整点）
 
 permissions:
   contents: read
-  security-events: write # 上传 SARIF 到 Security 标签页
+  security-events: write  # 上传 SARIF 到 Security 标签页
 
 concurrency:
   group: codeql-${{ github.ref }}

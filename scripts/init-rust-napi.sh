@@ -10,7 +10,8 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 [ -n "${1:-}" ] && { cd "$1" || die "目录不存在: $1"; }
-export PROJ_DIR="$(pwd)"
+PROJ_DIR="$(pwd)"
+export PROJ_DIR
 
 apply_ffi_harness node
 
