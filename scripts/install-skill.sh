@@ -283,7 +283,7 @@ cmd_update() {
         err "未知参数: $1"; usage; exit 1
         ;;
       *)
-        [[ -z "$skill_name" ]] && skill_name="$1" || { err "多余参数: $1"; usage; exit 1; }
+        if [[ -z "$skill_name" ]]; then skill_name="$1"; else err "多余参数: $1"; usage; exit 1; fi
         ;;
     esac
     shift
