@@ -6,6 +6,27 @@ set -euo pipefail
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TPL_COMMON="$SKILL_DIR/templates/common"
 
+# --- 版本常量（集中管理，模板引用此变量）---
+# shellcheck disable=SC2034  # 被 source 的脚本读取
+COV_THRESHOLD=80
+# shellcheck disable=SC2034
+PRE_COMMIT_HOOKS_REV="v5.0.0"
+# shellcheck disable=SC2034
+TYPOS_REV="v1.28.0"
+
+# --- 幂等保护 ---
+# check_idempotent <manifest_file> <lang>
+# 检测目标目录是否已有语言 manifest 文件，已有则 warn 并跳过脚手架。
+# 用法：在脚手架命令前调用，返回 0=可继续，1=已存在需跳过脚手架。
+check_idempotent() {
+  local manifest="$1" lang="${2:-}"
+  if [ -f "$manifest" ]; then
+    warn "检测到已有 $lang manifest（$manifest），跳过脚手架（避免覆盖）"
+    return 0
+  fi
+  return 1
+}
+
 # 颜色日志
 log()  { printf '\033[1;34m[harness]\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
@@ -107,6 +128,32 @@ install_hooks() {
   bash "$SKILL_DIR/scripts/install-hooks.sh" || warn "hook 安装未全部完成（见上方提示）"
 }
 
+# merge_node_snippet <proj_dir>
+# 合并 prettier.snippet.json 到 package.json（scripts/prettier/engines）。
+# 由 init-node.sh 和 init-multi.sh 共享调用（DRY）。
+# 成功合并后删除 snippet 文件；node 未装则 warn + 保留 snippet。
+merge_node_snippet() {
+  local dir="$1"
+  [ -f "$dir/prettier.snippet.json" ] || return 0
+  [ -f "$dir/package.json" ] || return 0
+  if ! command -v node >/dev/null 2>&1; then
+    warn "node 未安装，prettier.snippet.json 未自动合并（手动合并 scripts/prettier/engines 到 package.json）"
+    return 0
+  fi
+  (
+    cd "$dir"
+    node -e '
+      const fs = require("fs");
+      const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+      const snip = JSON.parse(fs.readFileSync("prettier.snippet.json", "utf8"));
+      pkg.scripts = Object.assign({}, pkg.scripts || {}, snip.scripts || {});
+      if (snip.prettier) pkg.prettier = snip.prettier;
+      if (snip.engines) pkg.engines = snip.engines;
+      fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+    ' && rm -f prettier.snippet.json && ok "package.json 已合并 scripts/prettier/engines"
+  )
+}
+
 # harness_finalize — stage 全部文件并打印下一步指引
 harness_finalize() {
   cd "$PROJ_DIR"
@@ -185,6 +232,9 @@ apply_ffi_harness() {
 harness_finalize_multi() {
   cd "$PROJ_DIR"
   git add -A 2>/dev/null || true
+  # 收集待合并 hook 片段文件列表（在 heredoc 外计算，避免 shellcheck SC2012）
+  local _hook_fragments
+  _hook_fragments=$(find "$PROJ_DIR" -maxdepth 1 \( -name '*-.pre-commit-config.yaml' -o -name '*-lefthook.yml' \) 2>/dev/null | sed 's/^/  - /' || echo '  （无）')
   cat <<EOF
 
 ————————————————————————————————————————————————————————
@@ -193,7 +243,7 @@ harness_finalize_multi() {
 语言（主→次）: $LANGS
 
 待合并 hook 片段（主语言为基底，次语言片段需语义合并后删除）:
-$(ls -1 "$PROJ_DIR"/*-.pre-commit-config.yaml "$PROJ_DIR"/*-lefthook.yml 2>/dev/null | sed 's/^/  - /' || echo '  （无）')
+$_hook_fragments
 
 下一步:
   1. 按 references/multi-language.md 合并 hook 片段（主语言基底 + 次语言 {lang}- 片段）
