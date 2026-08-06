@@ -9,8 +9,8 @@
 # 其余=次语言（prefix {lang}- 避免覆盖；hook 配置成 {lang}-lefthook.yml/{lang}-.pre-commit-config.yaml 待合并片段）。
 # 各语言脚手架在 $PROJ_DIR/<lang>/ 子目录；仓库根放共享 .github/ + hook 配置 + .gitignore。
 #
-# 边界: 第一版内置 rust/python/node（脚手架可在预设子目录干净跑）。
-#   含 java/go/cpp/ruby/php/dotnet 的组合见 references/multi-language.md 手动并存步骤。
+# 边界: 支持全部 9 种语言。各语言脚手架在 $PROJ_DIR/<lang>/ 子目录。
+# 注意: java/mvnrchetype 和 ruby/bundle gem 会嵌套建目录，需特殊处理。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -21,11 +21,17 @@ ROOT_NAME="${2:-}"
 IFS=',' read -ra LANG_ARR <<< "$LANGS"
 [ "${#LANG_ARR[@]}" -ge 2 ] || die "至少需 2 种语言（逗号分隔），如 rust,python"
 
+# Node 包管理器检测（setup_lang_deps 的 node 分支用）
+if command -v pnpm >/dev/null 2>&1; then PKG=pnpm; PKG_DEV_FLAG=-D
+elif command -v npm >/dev/null 2>&1; then PKG=npm; PKG_DEV_FLAG=-D
+elif command -v bun >/dev/null 2>&1; then PKG=bun; PKG_DEV_FLAG=--dev
+else PKG=; PKG_DEV_FLAG=; fi  # 无 node 包管理器时留空（非 node 项目不影响）
+
 # 校验语言（重复也拒，避免无意义主次同名）
 for L in "${LANG_ARR[@]}"; do
   case "$L" in
-    rust|python|node) ;;
-    *) die "语言 '$L' 暂未内置并存支持（第一版仅 rust/python/node）。含 $L 的组合请按 references/multi-language.md 手动并存。" ;;
+    rust|python|node|go|java|cpp|ruby|php|dotnet) ;;
+    *) die "语言 '$L' 未知。支持: rust python node go java cpp ruby php dotnet" ;;
   esac
 done
 
@@ -43,6 +49,7 @@ if [ -n "$ROOT_NAME" ]; then
   mkdir -p "$ROOT_NAME" && cd "$ROOT_NAME"
 fi
 PROJ_DIR="$(pwd)"
+# shellcheck disable=SC2034  # harness_finalize_multi 读取
 LANG_NAME="Multi (${LANGS})"
 export PROJ_DIR LANGS   # harness_finalize_multi 读
 
@@ -61,10 +68,69 @@ scaffold_lang() {
         uv init --lib >/dev/null 2>&1 || uv init >/dev/null 2>&1 || die "uv init 失败"
         ;;
       node)
-        if command -v pnpm >/dev/null 2>&1; then PKG=pnpm
-        elif command -v npm >/dev/null 2>&1; then PKG=npm
-        else die "node 缺少 pnpm/npm"; fi
+        # PKG 已在脚本顶部检测
+        [ -n "$PKG" ] || die "node 缺少 pnpm/npm/bun"
         $PKG init -y >/dev/null
+        ;;
+      go)
+        require_cmd go
+        local mod
+        mod="github.com/$(whoami)/$(basename "$dir")"
+        go mod init "$mod" >/dev/null
+        ;;
+      java)
+        require_cmd mvn
+        # mvn archetype:generate 会嵌套建目录，用临时目录 + 移动文件规避
+        local tmpdir=".pangu-mvn-tmp"
+        mkdir -p "$tmpdir"
+        mvn -B archetype:generate \
+          -DgroupId=com.example \
+          -DartifactId="$(basename "$dir")" \
+          -DarchetypeGroupId=org.apache.maven.archetypes \
+          -DarchetypeArtifactId=maven-archetype-quickstart \
+          -DarchetypeVersion=1.5 \
+          -DinteractiveMode=false \
+          -DoutputDirectory="$tmpdir" >/dev/null 2>&1
+        # 移动生成的文件到当前目录（跳过外层包装目录）
+        if [ -d "$tmpdir/$(basename "$dir")" ]; then
+          mv "$tmpdir/$(basename "$dir")"/* . 2>/dev/null || true
+          mv "$tmpdir/$(basename "$dir")"/.* . 2>/dev/null || true
+        fi
+        rm -rf "$tmpdir"
+        ;;
+      cpp)
+        mkdir -p src include tests
+        if [ ! -f src/main.cpp ]; then
+          cat > src/main.cpp <<'CPP'
+#include <iostream>
+
+int main() {
+    std::cout << "hello\n";
+    return 0;
+}
+CPP
+        fi
+        ;;
+      ruby)
+        require_cmd bundle
+        # bundle gem 会嵌套建目录，用 bundle init 代替（生成 Gemfile 即可）
+        bundle init >/dev/null 2>&1 || die "bundle init 失败"
+        ;;
+      php)
+        require_cmd composer
+        composer init --no-interaction \
+          --type=project --license=MIT \
+          --name="$(whoami | tr '[:upper:]' '[:lower:]')/$(basename "$dir" | tr '[:upper:]' '[:lower:]')" \
+          >/dev/null 2>&1 || composer init --no-interaction >/dev/null 2>&1 \
+          || die "composer init 失败"
+        ;;
+      dotnet)
+        require_cmd dotnet
+        local _name
+        _name="$(basename "$dir")"
+        dotnet new console -n "$_name" -o . >/dev/null 2>&1 \
+          || dotnet new console >/dev/null 2>&1 \
+          || die "dotnet new console 失败"
         ;;
     esac
   )
@@ -87,9 +153,9 @@ setup_lang_deps() {
       ;;
     node)
       ( cd "$sub"
-        $PKG add -D typescript @types/node prettier eslint @eslint/js typescript-eslint \
+        $PKG add $PKG_DEV_FLAG typescript @types/node prettier eslint @eslint/js typescript-eslint \
           eslint-plugin-security vitest @vitest/coverage-v8 \
-          || warn "node $PKG add -D 失败，请手动安装上述 dev 依赖"
+          || warn "node $PKG add $PKG_DEV_FLAG 失败，请手动安装上述 dev 依赖"
         # copy_lang 把 snippet/tsconfig 拷到仓库根（非冲突文件原样），移入 node/ 子目录
         [ -f "$PROJ_DIR/eslint-flat.snippet.js" ] && [ ! -f eslint.config.js ] \
           && mv "$PROJ_DIR/eslint-flat.snippet.js" eslint.config.js && ok "node/eslint.config.js 已生成"
@@ -97,17 +163,42 @@ setup_lang_deps() {
           && mv "$PROJ_DIR/tsconfig.json" tsconfig.json
         [ -f "$PROJ_DIR/vitest.config.ts" ] && [ ! -f vitest.config.ts ] \
           && mv "$PROJ_DIR/vitest.config.ts" vitest.config.ts
-        if [ -f "$PROJ_DIR/prettier.snippet.json" ] && [ -f package.json ]; then
-          node -e "
-            const fs=require('fs');
-            const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
-            const snip=JSON.parse(fs.readFileSync('$PROJ_DIR/prettier.snippet.json','utf8'));
-            pkg.scripts=Object.assign({},pkg.scripts||{},snip.scripts||{});
-            if(snip.prettier)pkg.prettier=snip.prettier;
-            if(snip.engines)pkg.engines=snip.engines;
-            fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
-          " && rm "$PROJ_DIR/prettier.snippet.json" && ok "node/package.json 已合并 scripts/prettier/engines"
+      )
+      # 使用公共函数合并 prettier snippet（DRY，与 init-node.sh 共享）
+      merge_node_snippet "$sub"
+      ;;
+    go)
+      # Go 无 dev deps，但提示工具安装
+      for cmd in golangci-lint gosec govulncheck; do
+        command -v "$cmd" >/dev/null 2>&1 || warn "Go: 缺少 $cmd（CI 自动安装，本地建议安装）"
+      done
+      ;;
+    java)
+      # pom-plugins.snippet.xml 在根（copy_lang 原样拷），java/pom.xml 在子目录 → warn 手动合并
+      [ -f "$PROJ_DIR/pom-plugins.snippet.xml" ] \
+        && warn "Java: 把根目录 pom-plugins.snippet.xml 合并到 $sub/pom.xml 后删除该文件"
+      ;;
+    cpp) ;;  # C++ 无 dev deps；clang-format/clang-tidy/cppcheck 在 CI 装
+    ruby)
+      ( cd "$sub"
+        if [ -f Gemfile ]; then
+          bundle add rspec rubocop rubocop-rspec simplecov bundler-audit --group development \
+            || warn "ruby bundle add 失败，请手动: bundle add rspec rubocop simplecov bundler-audit --group development"
         fi
+      )
+      ;;
+    php)
+      ( cd "$sub"
+        composer require --dev friendsofphp/php-cs-fixer vimeo/psalm phpunit/phpunit \
+          || warn "php composer require --dev 失败，请手动安装 php-cs-fixer/psalm/phpunit"
+      )
+      ;;
+    dotnet)
+      ( cd "$sub"
+        dotnet add package SecurityCodeScan.VS2019 \
+          || warn "dotnet add SecurityCodeScan 失败，请手动添加"
+        dotnet add package coverlet.collector \
+          || warn "dotnet add coverlet.collector 失败，请手动添加"
       )
       ;;
   esac

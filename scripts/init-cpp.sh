@@ -7,12 +7,14 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="C/C++ (CMake)"
 
 PROJ_NAME="${1:-}"
 if [ -n "$PROJ_NAME" ]; then
   mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"
 fi
+# shellcheck disable=SC2034  # harness_finalize 读取
 PROJ_DIR="$(pwd)"
 
 mkdir -p src include tests

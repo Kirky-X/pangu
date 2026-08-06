@@ -6,6 +6,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="PHP"
 require_cmd composer
 
@@ -15,13 +16,18 @@ if [ -n "$PROJ_NAME" ]; then
 fi
 PROJ_DIR="$(pwd)"
 
-# 非交互式初始化：默认应用类型，MIT，PSR-4 autoload（包名小写）
-composer init --no-interaction \
-  --type=project \
-  --license=MIT \
-  --name="$(whoami | tr '[:upper:]' '[:lower:]')/$(basename "$PROJ_DIR" | tr '[:upper:]' '[:lower:]')" \
-  >/dev/null 2>&1 || composer init --no-interaction >/dev/null 2>&1 \
-  || die "composer init 失败"
+# 幂等保护：检测目标目录是否已有 composer.json
+if [ -f "$PROJ_DIR/composer.json" ]; then
+  warn "检测到已有 PHP 项目（composer.json），跳过脚手架（避免覆盖）"
+else
+  # 非交互式初始化：默认应用类型，MIT，PSR-4 autoload（包名小写）
+  composer init --no-interaction \
+    --type=project \
+    --license=MIT \
+    --name="$(whoami | tr '[:upper:]' '[:lower:]')/$(basename "$PROJ_DIR" | tr '[:upper:]' '[:lower:]')" \
+    >/dev/null 2>&1 || composer init --no-interaction >/dev/null 2>&1 \
+    || die "composer init 失败"
+fi
 log "PHP 脚手架已生成 (composer init)"
 
 copy_common

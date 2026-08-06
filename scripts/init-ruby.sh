@@ -6,18 +6,31 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Ruby"
 require_cmd bundle
 
 PROJ_NAME="${1:-}"
 if [ -n "$PROJ_NAME" ]; then
-  bundle gem "$PROJ_NAME" --no-test --no-coc --no-license >/dev/null 2>&1 \
-    || bundle gem "$PROJ_NAME" >/dev/null 2>&1 \
-    || die "bundle gem 失败"
-  PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
+  # 幂等保护：检测目标目录是否已有 gemspec 或 Gemfile
+  if [ -d "$PROJ_NAME" ] && { ls "$PROJ_NAME"/*.gemspec >/dev/null 2>&1 || [ -f "$PROJ_NAME/Gemfile" ]; }; then
+    warn "检测到已有 Ruby 项目（$PROJ_NAME），跳过脚手架（避免覆盖）"
+    PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
+  else
+    bundle gem "$PROJ_NAME" --no-test --no-coc --no-license >/dev/null 2>&1 \
+      || bundle gem "$PROJ_NAME" >/dev/null 2>&1 \
+      || die "bundle gem 失败"
+    PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
+  fi
 else
-  bundle init
-  PROJ_DIR="$(pwd)"
+  # 幂等保护
+  if [ -f Gemfile ]; then
+    warn "检测到已有 Ruby 项目（Gemfile），跳过脚手架（避免覆盖）"
+    PROJ_DIR="$(pwd)"
+  else
+    bundle init
+    PROJ_DIR="$(pwd)"
+  fi
 fi
 log "Ruby 脚手架已生成"
 

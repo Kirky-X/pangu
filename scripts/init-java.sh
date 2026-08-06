@@ -7,6 +7,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Java (Maven)"
 require_cmd mvn
 
@@ -88,15 +89,20 @@ merge_pom_plugins() {
 ARTIFACT="${1:-app}"
 GROUP_ID="${JAVA_GROUP_ID:-com.example}"
 
-mvn -B archetype:generate \
-  -DgroupId="$GROUP_ID" \
-  -DartifactId="$ARTIFACT" \
-  -DarchetypeGroupId=org.apache.maven.archetypes \
-  -DarchetypeArtifactId=maven-archetype-quickstart \
-  -DarchetypeVersion=1.5 \
-  -DinteractiveMode=false >/dev/null
-
-PROJ_DIR="$(cd "$ARTIFACT" && pwd)"
+# 幂等保护：检测目标目录是否已有 pom.xml
+if [ -d "$ARTIFACT" ] && [ -f "$ARTIFACT/pom.xml" ]; then
+  warn "检测到已有 Java 项目（$ARTIFACT/pom.xml），跳过脚手架（避免覆盖）"
+  PROJ_DIR="$(cd "$ARTIFACT" && pwd)"
+else
+  mvn -B archetype:generate \
+    -DgroupId="$GROUP_ID" \
+    -DartifactId="$ARTIFACT" \
+    -DarchetypeGroupId=org.apache.maven.archetypes \
+    -DarchetypeArtifactId=maven-archetype-quickstart \
+    -DarchetypeVersion=1.5 \
+    -DinteractiveMode=false >/dev/null
+  PROJ_DIR="$(cd "$ARTIFACT" && pwd)"
+fi
 log "Java 脚手架已生成 (mvn archetype:generate → $ARTIFACT)"
 
 copy_common

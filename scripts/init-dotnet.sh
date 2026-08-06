@@ -6,6 +6,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME=".NET"
 require_cmd dotnet
 
@@ -23,9 +24,15 @@ PROJ_DIR="$(pwd)"
 
 # 不带参数时用当前目录名作项目名（与 init-go.sh MODULE 默认值 github.com/$(whoami)/$(basename "$PROJ_DIR") 惯例一致）
 _name="${PROJ_NAME:-$(basename "$PROJ_DIR")}"
-dotnet new "$KIND" -n "$_name" -o . >/dev/null 2>&1 \
-  || dotnet new "$KIND" >/dev/null 2>&1 \
-  || die "dotnet new $KIND 失败"
+
+# 幂等保护：检测目标目录是否已有 .csproj
+if ls "$PROJ_DIR"/*.csproj >/dev/null 2>&1; then
+  warn "检测到已有 .NET 项目（*.csproj），跳过脚手架（避免覆盖）"
+else
+  dotnet new "$KIND" -n "$_name" -o . >/dev/null 2>&1 \
+    || dotnet new "$KIND" >/dev/null 2>&1 \
+    || die "dotnet new $KIND 失败"
+fi
 log ".NET 脚手架已生成 (dotnet new $KIND)"
 
 copy_common

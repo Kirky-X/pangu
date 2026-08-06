@@ -6,6 +6,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Node/TypeScript"
 # pnpm 首选 → npm 回退 → bun 可选。
 # 注意 bun 的 dev 标志是 --dev（-d），与 npm/pnpm 的 -D 不同（bun 无 -D；-d/--dev 才入 devDependencies），
@@ -21,8 +22,13 @@ if [ -n "$PROJ_NAME" ]; then
 fi
 PROJ_DIR="$(pwd)"
 
-$PKG init -y >/dev/null
-log "Node 脚手架已生成 ($PKG init)"
+# 幂等保护：检测目标目录是否已有 package.json
+if [ -f "$PROJ_DIR/package.json" ]; then
+  warn "检测到已有 Node 项目（package.json），跳过脚手架（避免覆盖）"
+else
+  $PKG init -y >/dev/null
+  log "Node 脚手架已生成 ($PKG init)"
+fi
 
 copy_common
 copy_lang node
@@ -31,7 +37,7 @@ copy_lang node
 log "添加质量工具 dev 依赖 (typescript 工具链)"
 cd "$PROJ_DIR"
 # flat config 推荐组合: typescript-eslint(unified) + @eslint/js
-$PKG add $PKG_DEV_FLAG typescript @types/node \
+$PKG add "$PKG_DEV_FLAG" typescript @types/node \
   prettier eslint @eslint/js typescript-eslint \
   eslint-plugin-security \
   vitest @vitest/coverage-v8 \
@@ -43,23 +49,8 @@ if [ -f eslint-flat.snippet.js ] && [ ! -f eslint.config.js ]; then
   rm eslint-flat.snippet.js
   ok "eslint.config.js 已生成"
 fi
-if [ -f prettier.snippet.json ] && [ -f package.json ]; then
-  # node 几乎总在场（Node 项目）；但 bun-only 环境可能无 node 二进制——
-  # 缺则 warn + 保留 snippet 供手动合并，避免硬崩。
-  if ! command -v node >/dev/null 2>&1; then
-    warn "node 未安装，prettier.snippet.json 未自动合并（手动合并 scripts/prettier/engines 到 package.json）"
-  else
-    node -e '
-      const fs = require("fs");
-      const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-      const snip = JSON.parse(fs.readFileSync("prettier.snippet.json", "utf8"));
-      pkg.scripts = Object.assign({}, pkg.scripts || {}, snip.scripts || {});
-      if (snip.prettier) pkg.prettier = snip.prettier;
-      if (snip.engines) pkg.engines = snip.engines;
-      fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
-    ' && rm prettier.snippet.json && ok "package.json 已合并 scripts/prettier/engines"
-  fi
-fi
+# 使用公共函数合并 prettier snippet（与 init-multi.sh 共享）
+merge_node_snippet "$PROJ_DIR"
 
 git_init
 install_hooks

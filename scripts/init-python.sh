@@ -7,6 +7,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+# shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Python"
 require_cmd uv
 
@@ -17,14 +18,23 @@ case "$KIND" in
   *) die "第二参数须为 lib 或 app（默认 lib）" ;;
 esac
 
-if [ -n "$PROJ_NAME" ]; then
-  uv init "--$KIND" "$PROJ_NAME"
+# 幂等保护：检测目标目录是否已有 pyproject.toml
+if [ -n "$PROJ_NAME" ] && [ -f "$PROJ_NAME/pyproject.toml" ]; then
+  warn "检测到已有 Python 项目（$PROJ_NAME/pyproject.toml），跳过脚手架（避免覆盖）"
   PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
-else
-  uv init "--$KIND"
+elif [ -z "$PROJ_NAME" ] && [ -f pyproject.toml ]; then
+  warn "检测到已有 Python 项目（pyproject.toml），跳过脚手架（避免覆盖）"
   PROJ_DIR="$(pwd)"
+else
+  if [ -n "$PROJ_NAME" ]; then
+    uv init "--$KIND" "$PROJ_NAME"
+    PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
+  else
+    uv init "--$KIND"
+    PROJ_DIR="$(pwd)"
+  fi
+  log "Python 脚手架已生成 (uv init --$KIND)"
 fi
-log "Python 脚手架已生成 (uv init --$KIND)"
 
 copy_common
 copy_lang python
