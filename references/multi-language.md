@@ -29,11 +29,13 @@ flowchart TD
 
 | 脚本                | 形态            | 语言根布局           | 谁管骨架                      | 谁管 harness                |
 | ------------------- | --------------- | -------------------- | ----------------------------- | --------------------------- |
-| `init-multi.sh`     | 并存型 monorepo | `<lang>/` 子目录     | 本脚本（cargo/uv/pnpm init）  | 本脚本                      |
+| `init-multi.sh`     | 并存型 monorepo | `<lang>/` 子目录     | 本脚本（全部 9 语言支持）     | 本脚本                      |
 | `init-rust-pyo3.sh` | FFI rust→python | rust+python **同根** | `maturin new --mixed`（前置） | 本脚本（apply_ffi_harness） |
 | `init-rust-napi.sh` | FFI rust→node   | rust+node **同根**   | `napi new`（前置，交互式）    | 本脚本（apply_ffi_harness） |
 
 FFI 脚本**半自动**：官方工具管骨架（maturin 非交互可参数化；napi 纯交互无法脚本化），skill 管 harness（CI/release/hook/配置）。产物未就位时脚本 die 提示先跑官方命令。
+
+`init-multi.sh` 支持全部 9 种语言（rust/python/node/go/java/cpp/ruby/php/dotnet）。java/mvn archetype 和 ruby/bundle gem 会嵌套建目录，脚本内部用临时目录+移动文件或 `bundle init` 替代规避。
 
 ---
 
@@ -107,9 +109,9 @@ bash ~/.claude/skills/pangu/scripts/init-rust-napi.sh
 
 ---
 
-## 非内置语言手动并存（java/go/cpp/ruby/php/dotnet）
+## 非内置语言手动并存（已废弃，init-multi.sh 已支持全部 9 语言）
 
-`init-multi.sh` 第一版仅内置 rust/python/node（脚手架能在预设子目录干净跑）。含其他语言的组合，手动并存：
+> `init-multi.sh` 现已支持全部 9 种语言，以下手动并存步骤仅作参考（用于特殊场景或自定义布局）。
 
 ```bash
 # 1. 各语言在 <lang>/ 子目录跑对应单语言脚本（PROJ_DIR 默认当前目录）
@@ -127,4 +129,4 @@ cd java && bash ~/.claude/skills/pangu/scripts/init-java.sh && cd ..
 # 4. .gitignore 天然追加合并（_common.sh:65-70），无需手动处理
 ```
 
-> 为什么不内置：`mvn archetype:generate` / `bundle gem` 等脚手架会在预设目录里再建一层目录（嵌套），与 init-multi 的 `<lang>/` 子目录约定冲突，需逐语言适配。待需求明确再扩展。
+> 为什么第一版只内置 3 种：`mvn archetype:generate` / `bundle gem` 等脚手架会在预设目录里再建一层目录（嵌套），与 init-multi 的 `<lang>/` 子目录约定冲突。现已通过临时目录+移动文件 / `bundle init` 替代等方式解决。

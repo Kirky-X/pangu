@@ -85,7 +85,7 @@ pnpm test -- --coverage
 | 静态分析    | `mvn spotbugs:check`（含 FindSecBugs 插件）                                                                      |
 | 安全        | `mvn org.owasp:dependency-check-maven:check`                                                                     |
 | 测试+覆盖率 | `mvn test jacoco:report`（`jacoco` 配 `--fail-under-line 80`）                                                   |
-| 发布        | `mvn deploy`（Maven Central，需 GPG + MAVEN*CENTRAL*\*）                                                         |
+| 发布        | `mvn deploy`（Maven Central，需 GPG + MAVEN_CENTRAL_TOKEN）                                                         |
 
 Gradle 备选：`./gradlew spotlessCheck check jacocoTestCoverageVerification sonarqube`。
 

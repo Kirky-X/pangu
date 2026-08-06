@@ -12,15 +12,14 @@ license: MIT
 
 ```mermaid
 flowchart TD
-    A["🔴 1. 确认 4 项（语言 L / 包管理器 / 是否发 registry / 项目路径）<br/>未定必须先 AskUserQuestion 暴露权衡，禁止盲目初始化 → 查「语言路由表」"]
-    B["2. cd 目标目录（或新建）"]
-    C["3. bash <skill>/scripts/init-{L}.sh [项目名]"]
-    C1["自动：语言脚手架 + 拷贝 harness 模板 + git init + 装本地 hooks"]
-    D["4. 配置 GitHub secrets<br/>→ 查 references/registry-secrets.md（按需）"]
-    E["5. 验证：本地跑一遍 CI 等价命令<br/>→ 查 references/languages.md 对应语言「本地复现」段"]
-    F["🛑 6. STOP：push 前确认 secrets 已配 + 步骤 5 本地复现全绿<br/>→ 再 push 触发 CI"]
+    A["🔴 阶段 0. 确认 4 项（语言 L / 包管理器 / 是否发 registry / 项目路径）<br/>未定必须先 AskUserQuestion 暴露权衡，禁止盲目初始化 → 查「语言路由表」"]
+    B["阶段 1. cd 目标目录（或新建）+ bash init-{L}.sh [项目名]"]
+    C["自动：语言脚手架 + 拷贝 harness 模板 + git init + 装本地 hooks"]
+    D["阶段 2-4. CI 门禁 + Release 工作流 + 依赖安全护栏（模板已生成）"]
+    E["阶段 5. 验证：本地跑一遍 CI 等价命令<br/>→ 查 references/languages.md 对应语言「本地复现」段"]
+    F["🛑 STOP：push 前确认 secrets 已配 + 步骤 E 本地复现全绿<br/>→ 再 push 触发 CI"]
     A --> B --> C --> D --> E --> F
-    C --> C1
+    B --> C
 ```
 
 ## 核心原则
@@ -43,7 +42,7 @@ flowchart TD
 | **Rust**    | `init-rust.sh`   | cargo                | `rust/ci.yml`   | `rust/release.yml`   | cargo-audit + cargo-deny + Miri            | cargo-llvm-cov / tarpaulin | crates.io（CARGO_REGISTRY_TOKEN）     |
 | **Python**  | `init-python.sh` | uv（首选）/pip       | `python/ci.yml` | `python/release.yml` | bandit + pip-audit + ruff                  | pytest-cov                 | PyPI（PYPI_TOKEN / UV_PUBLISH_TOKEN） |
 | **Node/TS** | `init-node.sh`   | pnpm（首选）/npm     | `node/ci.yml`   | `node/release.yml`   | eslint-plugin-security + npm audit         | vitest-cov / c8            | npm（NPM_TOKEN）                      |
-| **Java**    | `init-java.sh`   | Maven（默认）/Gradle | `java/ci.yml`   | `java/release.yml`   | SpotBugs+FindSecBugs + OWASP Dep-Check     | JaCoCo                     | Maven Central（MAVEN*CENTRAL*\*）     |
+| **Java**    | `init-java.sh`   | Maven（默认）/Gradle | `java/ci.yml`   | `java/release.yml`   | SpotBugs+FindSecBugs + OWASP Dep-Check     | JaCoCo                     | Maven Central（MAVEN_CENTRAL_TOKEN）      |
 | **Go**      | `init-go.sh`     | go modules           | `go/ci.yml`     | `go/release.yml`     | gosec + govulncheck                        | go test -cover + covdata   | GitHub Release（Go 无中心 registry）  |
 | **C/C++**   | `init-cpp.sh`    | CMake + Ninja        | `cpp/ci.yml`    | `cpp/release.yml`    | cppcheck + flawfinder + clang-tidy         | gcov + lcov / gcovr        | GitHub Release                        |
 | **Ruby**    | `init-ruby.sh`   | bundler              | `ruby/ci.yml`   | `ruby/release.yml`   | brakeman + bundler-audit                   | simplecov                  | RubyGems（RUBYGEMS_AUTH_TOKEN）       |
