@@ -1,149 +1,96 @@
-# Pangu (盘古) — Industrial-Grade Project Init Skill
+# Pangu (盘古) — Project Harness Init
 
-[中文](README.md)
+> Turns an empty directory into a fully-guarded project: language scaffolding + Git + GitHub CI quality gates + tag-triggered Release publishing + local pre-commit/lefthook dual checks + coverage gate (baseline 80%).
 
-[![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FKirky-X%2Fpangu%2Fmain%2Fskill.json&query=%24.version&label=version&style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
 
-Pangu is an industrial-grade project initialization skill for AI agents. It turns an empty directory into a production-grade project with **complete quality guardrails**: language scaffolding + Git + GitHub CI quality gates + tag-triggered Release workflow + local pre-commit/lefthook dual industrial checks + coverage gate (industry baseline 80%).
+English | [中文](README.md)
 
-Covers **9 languages** + **3 multi-language hybrid forms**. Templates and scripts are pre-stored in the skill directory and copied/invoked directly — nothing is generated from scratch. See [SKILL.md](SKILL.md) for the full route table and process documentation.
+## ✨ Features
 
-## Features
+- **One-command init for 9 languages**: Rust / Python / Node / Java / Go / C++ / Ruby / PHP / .NET, each with dedicated CI templates, Release workflows, security scanners (cargo-audit, bandit, gosec, OWASP Dep-Check, etc.), and coverage tooling.
+- **3 hybrid forms**: coexisting monorepo (`init-multi.sh`), FFI rust→python (`init-rust-pyo3.sh`), FFI rust→node (`init-rust-napi.sh`).
+- **10th project type — skill repos themselves**: `init-skill.sh` scaffolds a standard skill repo; `align-skill.sh` aligns existing skills (`--dry-run`/`--fix`); `bump-skill-version.sh` propagates version bumps.
+- **Policy as code**: `.pre-commit-config.yaml` is the single source of gate truth; lefthook + CI mirror the core subset with unified thresholds (fast core: format/lint/license-deny; slow: coverage ≥80% + security audit → pre-push + CI).
+- **Coverage gates are real**: Go/Ruby CI hard-fail via `--cov-fail-under=80` / awk threshold checks, never neutralized by `|| true`; uploads go through the official `codecov-action@v4`; gosec is pinned to `@v2.21.4` for Go.
+- **Conditional release**: the Release workflow (triggered by `v*` tags) always produces a GitHub Release; it pushes to a registry (crates.io / PyPI / npm / Maven Central / RubyGems / NuGet) **only when the corresponding secret exists** — no secret, no error, just skip.
+- **SHA-pinned own CI**: pangu's own workflows reference all third-party actions by commit SHA.
+- **Dependency guardrails**: Dependabot + CodeQL + per-language SCA.
 
-### One-command init for 9 languages
-
-| Language | init script | Package manager / build | Security tools | Coverage tools | Registry (conditional) |
-| -------- | ----------- | ----------------------- | -------------- | -------------- | ---------------------- |
-| Rust | init-rust.sh | cargo | cargo-audit + cargo-deny + Miri | cargo-llvm-cov / tarpaulin | crates.io |
-| Python | init-python.sh | uv / pip | bandit + pip-audit + ruff | pytest-cov | PyPI |
-| Node/TS | init-node.sh | pnpm / npm | eslint-plugin-security + npm audit | vitest-cov / c8 | npm |
-| Java | init-java.sh | Maven / Gradle | SpotBugs+FindSecBugs + OWASP Dep-Check | JaCoCo | Maven Central |
-| Go | init-go.sh | go modules | gosec + govulncheck | go test -cover + covdata | GitHub Release |
-| C/C++ | init-cpp.sh | CMake + Ninja | cppcheck + flawfinder + clang-tidy | gcov + lcov / gcovr | GitHub Release |
-| Ruby | init-ruby.sh | bundler | brakeman + bundler-audit | simplecov | RubyGems |
-| PHP | init-php.sh | composer | psalm(security) + composer-audit | phpunit --coverage | Packagist |
-| .NET | init-dotnet.sh | dotnet CLI | SecurityCodeScan + dotnet format analyzers | coverlet + reportgenerator | NuGet |
-
-> Shared GitHub-ecosystem files (dependabot, codeql, issue/pr templates, CODEOWNERS, editorconfig) live in `templates/common/` and are used by all languages.
-
-### 3 multi-language hybrid forms
-
-| Form | Criterion | Script | Layout |
-| ---- | --------- | ------ | ------ |
-| Coexisting monorepo | Multiple languages, independent, no cross-calls | `init-multi.sh <l1,l2,...>` | Per-`<lang>/` subdirs, root shares harness |
-| FFI rust→python | rust core + python binding (PyO3/maturin) | `init-rust-pyo3.sh` | rust+python **same root** |
-| FFI rust→node | rust core + node binding (napi-rs) | `init-rust-napi.sh` | rust+node **same root** |
-
-### Quality guardrails
-
-- **Policy as code**: `.pre-commit-config.yaml` is the single source of gate truth (most complete checks); lefthook + CI mirror the core subset with unified thresholds to avoid "passes locally, red in CI"
-  - **fast core** (format / lint / license-deny) → pre-commit + lefthook + CI, consistent across all three, run on every commit
-  - **slow** (coverage ≥80% / security audit) → lefthook `pre-push` + CI, thresholds aligned
-- **Conditional release**: Release workflow always produces GitHub Release artifacts; pushes to a registry (crates.io / PyPI / npm / Maven Central / RubyGems / Packagist / NuGet) **only when the corresponding secret exists** — no secret, no error, just skip
-- **Coverage industry baseline 80%**: core business logic 85%+, utility classes 70%+
-
-## Installation
-
-### Method 1: Via `skills` package (recommended)
-
-Requires [Node.js](https://nodejs.org/) 18+ and the `skills` npm package (v1.5.12+). `skills` is the CLI for the open agent skills ecosystem, supporting 68+ agents (Claude Code / Trae / Cursor / Codex / OpenCode, etc.).
+## 📦 Installation
 
 ```bash
-# Install to Claude Code
-npx skills add https://github.com/Kirky-X/pangu.git --agent claude-code -y
+# Option 1: deploy from this workspace (to ~/.zcode/skills and ~/.claude/skills)
+bash scripts/sync-skills.sh pangu
 
-# Equivalent shorthand (owner/repo)
+# Option 2: manual copy into the ZCode skills directory
+cp -r /path/to/pangu ~/.zcode/skills/pangu
+
+# Option 3: remote install from GitHub
 npx skills add Kirky-X/pangu --agent claude-code -y
-
-# Install to Trae
-npx skills add Kirky-X/pangu --agent trae -y
-
-# List all discoverable skills in this repo (no install)
-npx skills add https://github.com/Kirky-X/pangu.git --list
 ```
 
-After installation, skill files are located in the corresponding agent's skills directory (e.g. `.claude/skills/pangu/`).
+## 🚀 Quick Start
 
-### Method 2: Traditional git clone
+Prerequisites: the target language toolchain (e.g. `uv` for Python, `cargo` for Rust); `$SKILL` is the skill install directory (e.g. `~/.zcode/skills/pangu`).
 
 ```bash
-git clone https://github.com/Kirky-X/pangu.git
-# Link or copy SKILL.md + references/ + scripts/ + templates/ to the agent skills directory
-# Skills directory paths for each runtime (choose one):
-#   Claude Code:  ~/.claude/skills/pangu/
-#   Trae:         ~/.trae-cn/skills/pangu/
-#   Cursor:       ~/.cursor/skills/pangu/
-#   Codex:        ~/.codex/skills/pangu/
+cd /path/to/project   # An empty dir works best; running init in an existing project overwrites some config — confirm first
+
+# Language init (self-contained: native scaffold + harness templates + git init + local hooks)
+bash "$SKILL/scripts/init-python.sh" my-project
+bash "$SKILL/scripts/init-rust.sh" my-project
+
+# Hybrid projects
+bash "$SKILL/scripts/init-multi.sh" rust,python,node my-monorepo   # coexisting monorepo
+# FFI: run maturin new --mixed --bindings pyo3 <name> (or napi new) first, then init-rust-pyo3.sh / init-rust-napi.sh
+
+# Skill-repo init (meta mode)
+bash "$SKILL/scripts/init-skill.sh" my-skill --cn-name 我的技能
 ```
 
-## Usage
-
-Once loaded as a skill by an agent, Pangu is triggered by natural language intent — no explicit commands needed. Trigger phrases include "initialize project", "new project", "set up CI", "configure pre-commit", "release workflow", "project scaffold", "industrial-grade checks", etc.
-
-```bash
-# 1. Enter the target directory (empty is best)
-cd /path/to/project
-
-# 2. Invoke the one-command script for the language (self-contained: scaffolding + harness copy + git init + hook install)
-bash ~/.claude/skills/pangu/scripts/init-rust.sh my-project
-
-# Multi-language hybrid projects use dedicated scripts:
-# Coexisting:        bash scripts/init-multi.sh rust,python,node my-monorepo
-# FFI rust→python:   run maturin new --mixed --bindings pyo3 <name> first, then bash scripts/init-rust-pyo3.sh
-# FFI rust→node:     run napi new first, then bash scripts/init-rust-napi.sh
-```
-
-Each `init-{L}.sh` does 4 things: native language scaffolding → copy `templates/common/` + `templates/{L}/` → `git init` + first stage (no auto-commit) → install local hooks (both pre-commit and lefthook; user enables one).
-
-## Capabilities
-
-### `references/` — Toolchain and spec references
-
-| File | Content | When to read |
-| ---- | ------- | ------------ |
-| [`languages.md`](references/languages.md) | 9-language toolchain cheat sheet (with local-reproduce commands) | Stage 1 / 6 |
-| [`coverage-standards.md`](references/coverage-standards.md) | Industry coverage gate standards | Configuring coverage threshold |
-| [`hooks-compare.md`](references/hooks-compare.md) | pre-commit vs lefthook selection | Stage 2 |
-| [`registry-secrets.md`](references/registry-secrets.md) | Per-registry secret configuration | Stage 4 |
-| [`multi-language.md`](references/multi-language.md) | Multi-language project guide (decision tree + hook merge) | Hybrid projects |
-
-### `scripts/` — One-command init scripts
-
-| Script | Purpose |
-| ------ | ------- |
-| `init-rust.sh` / `init-python.sh` / `init-node.sh` / `init-java.sh` / `init-go.sh` / `init-cpp.sh` / `init-ruby.sh` / `init-php.sh` / `init-dotnet.sh` | One-command init for 9 single languages |
-| `init-multi.sh` | Coexisting monorepo orchestration |
-| `init-rust-pyo3.sh` | FFI rust→python (maturin/PyO3) |
-| `init-rust-napi.sh` | FFI rust→node (napi-rs) |
-| `install-hooks.sh` | Local hook installation |
-| `_common.sh` | Common function library (sourced by each init; must read before editing scripts) |
-
-### `templates/` — Pre-stored harness templates
-
-```
-templates/
-├── common/          # Shared GitHub ecosystem (dependabot / codeql / issue-pr templates / CODEOWNERS / editorconfig / LICENSE-MIT)
-└── {rust,python,node,java,go,cpp,ruby,php,dotnet}/  # Per-language CI / release / hook / config
-```
-
-## Full Pipeline
+After init, follow the printed next steps: enable a local hook (`pre-commit install` or `lefthook install`, pick one) → reproduce CI commands locally until green → configure publish secrets (optional) → push to trigger CI / push a `v*` tag to trigger Release.
 
 ```mermaid
 flowchart LR
-    A["Intent confirm<br/>(Stage 0)"] --> B["init-{L}.sh<br/>(Stage 1)"]
-    B --> C["Configure GitHub secrets<br/>(Stage 4)"]
-    C --> D["Local CI reproduce<br/>(Stage 6 verify)"]
-    D --> E["push triggers CI<br/>(CI gate)"]
+    A["Stage 0 Intent"] --> B["Stage 1 init-{L}.sh"] --> C["Stage 2 CI gates"] --> D["Stage 3 Release"] --> E["Stage 4 Deps"] --> F["Stage 5 Verify STOP"]
 ```
 
-1. **Stage 0 · Intent confirm**: language / package manager / whether to publish to a registry / project path (must confirm before destructive ops)
-2. **Stage 1 · Language init**: run `init-{L}.sh` for scaffolding + harness + git init + hook install
-3. **Stage 2 · Local hooks**: enable either pre-commit (`pre-commit install`) or lefthook (`lefthook install`)
-4. **Stage 3 · GitHub CI gate**: checkout → format → lint → security → test + coverage ≥80%; any non-zero exit blocks merge
-5. **Stage 4 · Release**: triggered by pushing a `v*` tag; build artifacts → GitHub Release → conditional registry push
-6. **Stage 5 · Dependency & security guardrails**: Dependabot + CodeQL + per-language SCA
-7. **🛑 Stage 6 · Verify (STOP)**: local CI reproduce + hook trigger verification + file inventory + YAML syntax check
+## ✅ Tests & Verification
 
-## License
+Verified 2026-09-13 (v0.1.4, matching the git tag):
 
-MIT
+- **Self-check gate**: `bash scripts/selfcheck.sh` passes in full — shellcheck on 20 scripts with 0 errors, YAML lint on 27 template files, and template integrity (ci.yml / release.yml / .pre-commit-config.yaml / lefthook.yml / .gitignore) for all 9+1 language dirs.
+- **Functional** (temp directories):
+  - `init-python.sh demo-py`: produced `pyproject.toml` + `src/` + `.pre-commit-config.yaml` + `lefthook.yml` + `.github/workflows/{ci.yml,codeql.yml,release.yml}`, with `uv run pytest --cov --cov-fail-under=80` in CI
+  - `init-rust.sh demo-rs`: produced `Cargo.toml` + `rustfmt.toml` + `clippy.toml` + `deny.toml` + the same workflow set
+  - Go/Ruby template coverage gates are hard-fail checks (awk threshold comparison, no `|| true`)
+- pangu's own CI (`.github/workflows/ci.yml`) pins every action by commit SHA.
+
+## 📁 Directory Structure
+
+```
+pangu/
+├── SKILL.md            # Route table + 5-stage flow + failure handling
+├── skill.json
+├── scripts/            # 20 scripts
+│   ├── init-{rust,python,node,java,go,cpp,ruby,php,dotnet}.sh
+│   ├── init-multi.sh / init-rust-pyo3.sh / init-rust-napi.sh
+│   ├── init-skill.sh / align-skill.sh / bump-skill-version.sh
+│   ├── install-hooks.sh / _common.sh / selfcheck.sh
+│   └── install-skill.sh
+├── templates/          # 11 template dirs
+│   ├── common/             # dependabot / codeql / issue-pr templates / CODEOWNERS
+│   ├── {rust,…,dotnet}/    # per-language CI / release / hook configs
+│   └── skill/              # skill-repo templates (9 .template files)
+└── references/         # 7 references (languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization)
+```
+
+## 🔮 Boundaries
+
+- **Does not trigger**: adding a single hook or editing one CI step (edit the file directly); localized changes to a mature project; generating only a `.gitignore`; the user explicitly wanting a single artifact (e.g. "just give me a release.yml").
+- **Sibling skills**: pangu covers 0-to-1 initialization; `specmark` manages the change process afterwards; `tiangang` runs security scans (CI security tooling is pre-wired by pangu, day-to-day scanning belongs to tiangang); `diting` handles code quality review.
+
+## 📄 License & Attribution
+
+MIT License. Author Kirky-X, repo [Kirky-X/pangu](https://github.com/Kirky-X/pangu).
