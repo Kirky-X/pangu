@@ -47,15 +47,12 @@ jobs:
           LINERATE=$(grep -oE 'line-rate="[0-9.]+"' coverage-report/Cobertura.xml | head -1 | grep -oE '[0-9.]+')
           echo "Line rate: $LINERATE"
           awk -v r="$LINERATE" 'BEGIN{ exit (r+0 >= 0.80) ? 0 : 1 }'
+      # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
       - name: Upload coverage
-        if: ${{ env.CODECOV_TOKEN != '' }}
-        run: |
-          REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)"
-        # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
-          files: ${{ env.REPORTPATH }}
+          files: '**/coverage.cobertura.xml'
   security:
     name: Security (vulnerable packages + SCS)
     runs-on: ubuntu-latest

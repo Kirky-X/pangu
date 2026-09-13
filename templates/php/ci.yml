@@ -53,7 +53,6 @@ jobs:
             exit($pct >= 80.0 ? 0 : 1);
           '
       - name: Upload coverage
-        if: ${{ env.CODECOV_TOKEN != '' }}
         # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4

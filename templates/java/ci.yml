@@ -40,7 +40,6 @@ jobs:
       - name: Enforce 80% line coverage
         run: mvn -B -ntp jacoco:check || { echo "::error::Line coverage below 80%"; exit 1; }
       - name: Upload coverage
-        if: ${{ env.CODECOV_TOKEN != '' }}
         # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
