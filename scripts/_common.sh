@@ -169,7 +169,7 @@ harness_finalize() {
        lefthook install       # 需先 brew install lefthook
   2. 检查 .github/workflows/ 下 ci.yml / release.yml，按需调整版本号与阈值
   3. 配置发布 secret（可选）:
-       ~/.claude/skills/pangu/references/registry-secrets.md
+       "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/references/registry-secrets.md"
   4. 首次提交:
        git commit -m "chore: bootstrap project harness"
   5. 推 tag 触发 release（自动建 GitHub Release，配了 secret 则发 registry）:

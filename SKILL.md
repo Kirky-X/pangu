@@ -121,7 +121,7 @@ init-skill.sh 完成 skill 仓库初始化后，发版时按 `references/skill-r
 
 ```bash
 cd /path/to/project
-bash ~/.claude/skills/pangu/scripts/init-rust.sh my-project
+bash "$SKILL/scripts/init-rust.sh" my-project   # $SKILL = 本 skill 安装目录（如 ~/.zcode/skills/pangu）
 ```
 
 脚本自包含：语言原生脚手架 + 拷贝 harness 模板（`templates/common/` + `templates/{L}/`）+ git init + 装本地 hooks（pre-commit framework + lefthook 双产出，择一启用，详见 `references/hooks-compare.md`）。多语言混合项目走专属脚本（见上方「混合项目路由」），脚本内部 4 步流程详见各 `init-{L}.sh` 头部注释。

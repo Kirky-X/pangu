@@ -5,7 +5,7 @@
 #   完成后本脚本叠加 harness（CI/release/hook/配置），rust 与 node 同根（napi 设计如此）。
 # 用法:
 #   cd /path/to/napi-project
-#   bash ~/.claude/skills/pangu/scripts/init-rust-napi.sh [项目目录(默认当前)]
+#   bash "$(dirname "$(readlink -f "$0")")/init-rust-napi.sh [项目目录(默认当前)]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 

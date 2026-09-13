@@ -5,7 +5,7 @@
 # 完成后本脚本叠加 harness（CI/release/hook/配置），rust 与 python 同根（maturin mixed layout）。
 # 用法:
 #   cd /path/to/maturin-project
-#   bash ~/.claude/skills/pangu/scripts/init-rust-pyo3.sh [项目目录(默认当前)]
+#   bash "$(dirname "$(readlink -f "$0")")/init-rust-pyo3.sh [项目目录(默认当前)]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 

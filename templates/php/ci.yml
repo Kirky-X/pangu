@@ -23,7 +23,8 @@ jobs:
       - name: php-cs-fixer
         run: php-cs-fixer fix --dry-run --using-cache=no --diff
       - name: Psalm（含安全审查，对应 PHP→Psalm）
-        run: vendor/bin/psalm --no-cache || true
+        run: vendor/bin/psalm --no-cache --stats
+        continue-on-error: true  # 显式 advisory：不阻断，但结果可见（不再用 || true 掩盖）
   test:
     name: Test + Coverage (≥80% line)
     runs-on: ubuntu-latest
@@ -53,7 +54,11 @@ jobs:
           '
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
-        run: curl -s https://codecov.io/bash | bash -s -- -f coverage.xml || true
+        # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
   security:
     name: Security (composer audit + Psalm taint)
     runs-on: ubuntu-latest
@@ -67,4 +72,5 @@ jobs:
       - name: composer audit（依赖 CVE）
         run: composer audit
       - name: Psalm taint analysis（污点分析）
-        run: vendor/bin/psalm --taint-analysis --no-cache || true
+        run: vendor/bin/psalm --taint-analysis --no-cache
+        continue-on-error: true  # 显式 advisory（同上）

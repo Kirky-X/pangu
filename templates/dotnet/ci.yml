@@ -51,7 +51,11 @@ jobs:
         if: ${{ env.CODECOV_TOKEN != '' }}
         run: |
           REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)"
-          curl -s https://codecov.io/bash | bash -s -- -f "$REPORTPATH" || true
+        # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ env.REPORTPATH }}
   security:
     name: Security (vulnerable packages + SCS)
     runs-on: ubuntu-latest
@@ -64,4 +68,5 @@ jobs:
       - name: SecurityCodeScan（编译期安全分析器，已通过 init-dotnet.sh dotnet add package SecurityCodeScan.VS2019 引入）
         run: dotnet build --no-restore
       - name: 已知漏洞依赖审计
-        run: dotnet list package --vulnerable --include-transitive || true
+        run: dotnet list package --vulnerable --include-transitive
+        continue-on-error: true  # 显式 advisory：列出不阻断（不再用 || true 掩盖）

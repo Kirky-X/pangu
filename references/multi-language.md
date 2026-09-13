@@ -1,5 +1,7 @@
 # 多语言项目指引
 
+> 约定：`$SKILL` 指本 skill 安装目录（如 `~/.zcode/skills/pangu`）。
+
 并存型 monorepo 与 FFI 绑定型的选型、hook 合并、CI 命名，以及非内置语言的手动并存步骤。
 
 ---
@@ -88,7 +90,7 @@ FFI 脚本**半自动**：官方工具管骨架（maturin 非交互可参数化�
 maturin new --mixed --bindings pyo3 my-pyo3-pkg
 cd my-pyo3-pkg
 # 叠加 harness
-bash ~/.claude/skills/pangu/scripts/init-rust-pyo3.sh
+bash "$SKILL/scripts/"init-rust-pyo3.sh
 ```
 
 产物布局（maturin mixed layout）：根 `Cargo.toml` + `pyproject.toml`（含 `[tool.maturin]`）+ `python/<pkg>/` + `src/lib.rs`。
@@ -100,7 +102,7 @@ bash ~/.claude/skills/pangu/scripts/init-rust-pyo3.sh
 napi new
 cd <生成的目录>
 # 叠加 harness
-bash ~/.claude/skills/pangu/scripts/init-rust-napi.sh
+bash "$SKILL/scripts/"init-rust-napi.sh
 ```
 
 产物布局：根 `Cargo.toml` + `package.json`（含 napi 脚本）+ `index.d.ts` + napi 生成的 `.github/workflows/`（universal CI）。
@@ -116,8 +118,8 @@ bash ~/.claude/skills/pangu/scripts/init-rust-napi.sh
 ```bash
 # 1. 各语言在 <lang>/ 子目录跑对应单语言脚本（PROJ_DIR 默认当前目录）
 mkdir my-monorepo && cd my-monorepo
-mkdir rust java && cd rust   && bash ~/.claude/skills/pangu/scripts/init-rust.sh   && cd ..
-cd java && bash ~/.claude/skills/pangu/scripts/init-java.sh && cd ..
+mkdir rust java && cd rust   && bash "$SKILL/scripts/"init-rust.sh   && cd ..
+cd java && bash "$SKILL/scripts/"init-java.sh && cd ..
 
 # 2. 第二个语言会覆盖根的 ci.yml/release.yml/lefthook.yml/.pre-commit-config.yaml
 #    手动把后拷语言的冲突文件改名（加 {lang}- 前缀作片段）:

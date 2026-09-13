@@ -44,11 +44,16 @@ jobs:
           go test -race -coverprofile=coverage.out -covermode=atomic ./...
           cov=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}')
           echo "Total line coverage: $cov"
+          # 覆盖率门禁：<80% 即失败（不以 || true 中和——静默失效违反规则12）
           awk -v c="${cov%\%}" 'BEGIN{exit !(c+0 < 80)}' && \
-            { echo "::error::Coverage $cov < 80%"; exit 1; } || true
+            { echo "::error::Coverage $cov < 80%"; exit 1; }
+      # 说明：原 curl -s https://codecov.io/bash | bash 为已退役的上传器（2023 安全事件后
+      # 官方下线），且属 curl|bash 反模式——改为官方 codecov-action（未配 token 时整步跳过）
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
-        run: curl -s https://codecov.io/bash | bash -s -- -f coverage.out || true
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
   security:
     name: Security (govulncheck + gosec)
     runs-on: ubuntu-latest
@@ -63,6 +68,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
       - name: gosec（对应 Go→Gosec）
-        uses: securego/gosec@master
+        uses: securego/gosec@v2.21.4  # 钉死版本（原 @master 浮动引用，与自身 SHA-pin 标准不一致）
         with:
           args: -severity medium -quiet ./...

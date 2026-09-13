@@ -41,7 +41,11 @@ jobs:
         run: mvn -B -ntp jacoco:check || { echo "::error::Line coverage below 80%"; exit 1; }
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
-        run: curl -s https://codecov.io/bash | bash -s -- -f target/site/jacoco/jacoco.xml || true
+        # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: target/site/jacoco/jacoco.xml
   security:
     name: Security (SpotBugs/FindSecBugs + OWASP Dep-Check)
     runs-on: ubuntu-latest

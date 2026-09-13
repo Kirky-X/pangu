@@ -45,11 +45,15 @@ jobs:
             end
           ' 2>/dev/null || echo 0)
           echo "Line coverage: ${cov}%"
+          # 覆盖率门禁：<80% 即失败（不以 || true 中和）
           awk -v c="$cov" 'BEGIN{exit !(c+0 < 80)}' && \
-            { echo "::error::Coverage ${cov}% < 80%"; exit 1; } || true
+            { echo "::error::Coverage ${cov}% < 80%"; exit 1; }
+      # 原 curl|bash uploader 已退役（见 go/ci.yml 注释），改官方 action
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
-        run: curl -s https://codecov.io/bash | bash -s -- -f coverage/.resultset.json || true
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/.resultset.json
   security:
     name: Security (Brakeman + bundle-audit)
     runs-on: ubuntu-latest
@@ -64,4 +68,5 @@ jobs:
           bundle exec brakeman --no-exit-on-warn 2>/dev/null || \
             echo "::notice::Brakeman 仅对 Rails 应用生效，非 Rails 项目自动跳过"
       - name: bundle-audit（依赖 CVE）
-        run: bundle exec bundle-audit check --update || true
+        run: bundle exec bundle-audit check --update
+        continue-on-error: true  # 显式 advisory：报告漏洞不阻断（不再用 || true 掩盖工具本身故障）

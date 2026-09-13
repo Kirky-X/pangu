@@ -54,4 +54,8 @@ jobs:
         if: ${{ env.CODECOV_TOKEN != '' }}
         run: |
           gcovr --xml -o coverage.xml
-          curl -s https://codecov.io/bash | bash -s -- -f coverage.xml || true
+        # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
+        if: ${{ env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
