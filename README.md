@@ -1,4 +1,4 @@
-# Pangu (盘古) — 项目 harness 初始化
+# Pangu（盘古）— 项目 Harness 初始化技能
 
 > 把空目录变成带完整质量护栏的项目：语言脚手架 + Git + GitHub CI 质量门禁 + tag 触发的 Release 发布 + 本地 pre-commit/lefthook 双检查 + 覆盖率门禁（底线 80%）。
 

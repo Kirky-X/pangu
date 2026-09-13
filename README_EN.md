@@ -1,4 +1,4 @@
-# Pangu (盘古) — Project Harness Init
+# Pangu — Project Harness Initialization Skill
 
 > Turns an empty directory into a fully-guarded project: language scaffolding + Git + GitHub CI quality gates + tag-triggered Release publishing + local pre-commit/lefthook dual checks + coverage gate (baseline 80%).
 
