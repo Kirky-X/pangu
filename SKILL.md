@@ -2,6 +2,11 @@
 name: pangu
 description: "工业级项目 harness 初始化（脚手架+CI+Release+hooks+覆盖率门禁）。触发：初始化项目/新建项目/CI 配置/pre-commit/release/脚手架/cargo init/go mod init/dotnet new/覆盖率门禁/安全审计"
 license: MIT
+metadata:
+  version: "0.1.5"
+  author: "Kirky-X"
+  repo: "https://github.com/Kirky-X/pangu"
+  tags: "project-init, scaffold, ci-cd, pre-commit, lefthook, release, coverage-gate, harness, multi-language"
 ---
 
 # Env Init · 工业级项目初始化
