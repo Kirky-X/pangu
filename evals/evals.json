@@ -1,0 +1,23 @@
+{
+  "skill_name": "pangu",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我初始化一个 Rust 项目，要完整的 CI 和 pre-commit 工业级检查",
+      "expected_output": "触发 pangu skill → 调用 init-rust.sh：cargo init + 拷贝 ci.yml/release.yml/.pre-commit-config.yaml/lefthook.yml + git init + 装 hooks；阶段0确认 + 提示 CARGO_REGISTRY_TOKEN 条件发布；本地 hook 与 CI 阈值一致（80% 覆盖率）",
+      "assertions": [
+        "The generated local hooks and CI use a consistent 80% coverage gate"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "新建一个 Python 项目",
+      "expected_output": "触发 pangu；用户未指定包管理器 → 阶段0应默认 uv（首选）并提示；init-python.sh 生成 uv 项目 + bandit/ruff/pytest-cov 门禁；不应盲目跑而跳过意图确认"
+    },
+    {
+      "id": 3,
+      "prompt": "我想做个 CLI 工具，不知道用啥语言，帮我搭好项目环境",
+      "expected_output": "触发 pangu；语言未定 → 阶段0必须先做意图确认（语言/包管理器/是否发 registry/项目路径），而非盲目选一种语言初始化；暴露语言选择的权衡"
+    }
+  ]
+}
