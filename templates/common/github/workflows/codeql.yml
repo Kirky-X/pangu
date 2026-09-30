@@ -5,9 +5,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   schedule:
     - cron: "37 4 * * 2"  # 每周二 04:37 UTC（避开整点）
 

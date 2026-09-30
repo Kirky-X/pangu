@@ -1,9 +1,9 @@
-# Rust CI 质量门禁：fmt / clippy / test / coverage(80%) / audit / deny
+# Rust CI 质量门禁：fmt / clippy / test / coverage(全局+diff) / audit / deny
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 
 permissions:
@@ -31,18 +31,34 @@ jobs:
       - run: cargo clippy --all-targets --all-features
 
   test:
-    name: test + coverage (≥80% lines)
+    name: test + coverage (global ≥ + diff ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: cargo test --all-features --no-fail-fast
-      - name: Coverage (fail under 80% lines)
-        run: cargo llvm-cov --all-features --fail-under-lines 80 --lcov --output-path lcov.info
+      - name: Coverage global (fail under __PANGU_COV__% lines)
+        run: cargo llvm-cov --all-features --fail-under-lines __PANGU_COV__ --lcov --output-path lcov.info
+      # diff coverage：只对相对基线分支新增/修改的行设阈值——新代码 0 覆盖也能拉高全局覆盖率的盲区由这层堵住
+      # （SKILL.md 核心原则 4 + references/coverage-standards.md「diff coverage」段的落地）
+      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
+      - uses: astral-sh/setup-uv@v4
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover lcov.info --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       - name: Upload to Codecov (可选)
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4

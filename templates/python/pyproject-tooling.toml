@@ -36,5 +36,5 @@ addopts = "--strict-markers --cov=src --cov-report=xml:coverage.xml --cov-report
 testpaths = ["tests"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = __PANGU_COV__
 show_missing = true

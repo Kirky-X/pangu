@@ -1,9 +1,9 @@
-# Node/TS CI 质量门禁：prettier / eslint / tsc / vitest+cov(80%) / pnpm audit
+# Node/TS CI 质量门禁：prettier / eslint / tsc / vitest+cov(阈值占位符) / pnpm audit
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 
 permissions:
@@ -32,12 +32,17 @@ jobs:
       - run: pnpm run typecheck
 
   test:
-    name: vitest + coverage (≥80%)
+    name: vitest + coverage (global + diff ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -46,7 +51,18 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # lcov.info 由 vitest.config.ts coverage.reporter 的 "lcov" 产出（供 diff-cover 消费）
       - run: pnpm run test:cov
+      # diff coverage：只对相对基线分支新增/修改的行设阈值（SKILL.md 核心原则 4 的落地）
+      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
+      - uses: astral-sh/setup-uv@v4
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover coverage/lcov.info --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       - name: Upload to Codecov (可选)
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4

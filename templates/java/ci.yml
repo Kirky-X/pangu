@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 permissions:
   contents: read
@@ -24,12 +24,17 @@ jobs:
       - name: Checkstyle
         run: mvn -B -ntp checkstyle:check
   test:
-    name: Test + Coverage (≥80% line)
+    name: Test + Coverage (global + diff)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,8 +42,18 @@ jobs:
           cache: maven
       - name: Test with JaCoCo
         run: mvn -B -ntp test jacoco:report
-      - name: Enforce 80% line coverage
-        run: mvn -B -ntp jacoco:check || { echo "::error::Line coverage below 80%"; exit 1; }
+      - name: Enforce global line coverage (阈值在 pom jacoco.minimum.lineRatio)
+        run: mvn -B -ntp jacoco:check || { echo "::error::Line coverage below threshold"; exit 1; }
+      # diff coverage：只对相对基线分支新增/修改的行设阈值（SKILL.md 核心原则 4 的落地）
+      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
+      - uses: astral-sh/setup-uv@v4
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover target/site/jacoco/jacoco.xml --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       - name: Upload coverage
         # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
         if: ${{ env.CODECOV_TOKEN != '' }}

@@ -2,6 +2,8 @@
 
 每种语言给出：脚手架、格式、Lint、类型、安全、测试+覆盖率、**本地复现 CI** 命令、发布命令。CI 模板（`templates/<lang>/ci.yml`）与本地命令等价。
 
+> 覆盖率阈值由 init 的 `--cov <N>` / `--profile core|tool` 渲染（默认 80）；下文命令以默认值 80 示例，实际以生成项目里的渲染值为准。diff coverage 详见 `references/coverage-standards.md`。
+
 ---
 
 ## Rust
@@ -24,7 +26,8 @@ cargo fmt --check && \
 cargo clippy --all-targets --all-features -- -D warnings && \
 cargo audit && cargo deny check && \
 cargo test --all-features && \
-cargo llvm-cov --fail-under-lines 80 --workspace
+cargo llvm-cov --all-features --fail-under-lines 80 --lcov --output-path lcov.info && \
+uvx diff-cover lcov.info --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -47,7 +50,8 @@ cargo llvm-cov --fail-under-lines 80 --workspace
 ```bash
 ruff format --check && ruff check && mypy src/ && \
 bandit -r src/ -ll && pip-audit && \
-pytest --cov=src --cov-report=term --cov-fail-under=80
+pytest --cov=src --cov-report=xml --cov-fail-under=80 && \
+uvx diff-cover coverage.xml --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -70,7 +74,8 @@ pytest --cov=src --cov-report=term --cov-fail-under=80
 ```bash
 prettier --check . && eslint . && tsc --noEmit && \
 pnpm audit --audit-level=high && \
-pnpm test -- --coverage
+pnpm run test:cov && \
+uvx diff-cover coverage/lcov.info --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -94,7 +99,8 @@ Gradle 备选：`./gradlew spotlessCheck check jacocoTestCoverageVerification so
 ```bash
 mvn -B spotless:check checkstyle:check spotbugs:check && \
 mvn -B org.owasp:dependency-check-maven:check && \
-mvn -B test jacoco:report
+mvn -B test jacoco:report jacoco:check && \
+uvx diff-cover target/site/jacoco/jacoco.xml --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -108,7 +114,7 @@ mvn -B test jacoco:report
 | 格式        | `gofmt -l .`（修：`gofmt -w .`）；`goimports -l .`                                                                |
 | Lint        | `golangci-lint run`（含 `go vet`）                                                                                |
 | 安全        | `gosec ./...`；`go run golang.org/x/vuln/cmd/govulncheck@latest ./...`                                            |
-| 测试+覆盖率 | `go test -race -coverprofile=coverage.out -coverpkg=./... ./...` → 阈值用 `go tool cover -func=coverage.out` 比对 |
+| 测试+覆盖率 | `go test -race -coverprofile=coverage.out -covermode=atomic ./...` → 阈值用 `go tool cover -func=coverage.out` 比对（口径须与 CI 一致，勿加 coverpkg） |
 | 发布        | Go 无中心 registry，发 GitHub Release（附加跨平台二进制）                                                         |
 
 **本地复现 CI**
@@ -116,8 +122,12 @@ mvn -B test jacoco:report
 ```bash
 gofmt -l . && go vet ./... && golangci-lint run && \
 gosec ./... && govulncheck ./... && \
-go test -race -coverprofile=coverage.out -coverpkg=./... ./...
+go test -race -coverprofile=coverage.out -covermode=atomic ./... && \
+cov=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}') && \
+awk -v c="${cov%\%}" 'BEGIN{exit !(c+0 < 80)}' && { echo "coverage $cov < 80%"; exit 1; }
 ```
+
+> Go 的 diff coverage 需 gocov 转换（diff-cover 不支持原生格式），升级路径见 `references/coverage-standards.md`。
 
 ---
 
@@ -139,7 +149,10 @@ go test -race -coverprofile=coverage.out -coverpkg=./... ./...
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build && \
 cppcheck --enable=warning,style --error-exitcode=1 src/ && \
 flawfinder src/ && \
-cd build && ctest --output-on-failure && gcovr --fail-under-line 80
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DAPP_ENABLE_COVERAGE=ON && cmake --build build --parallel && \
+ctest --test-dir build --output-on-failure && \
+gcovr --fail-under-line 80 --xml -o coverage.xml && \
+uvx diff-cover coverage.xml --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -162,8 +175,11 @@ cd build && ctest --output-on-failure && gcovr --fail-under-line 80
 bundle exec rubocop && \
 (bundle exec brakeman || true) && \
 bundle audit check --update && \
-bundle exec rspec
+bundle exec rspec && \
+ruby -rjson -e 'pct = JSON.parse(File.read("coverage/.last_run.json")).dig("result","covered_percent") || 0; exit(pct.to_f >= 80 ? 0 : 1)'
 ```
+
+> Ruby 的 diff coverage 需 simplecov-cobertura（diff-cover 不支持 simplecov 默认输出），升级路径见 `references/coverage-standards.md`。
 
 ---
 
@@ -186,7 +202,8 @@ composer install --no-interaction && \
 php-cs-fixer fix --dry-run --diff && \
 psalm --security-analysis && \
 composer audit && \
-phpunit --coverage-text
+vendor/bin/phpunit --coverage-clover coverage.xml && \
+uvx diff-cover coverage.xml --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---
@@ -209,7 +226,11 @@ phpunit --coverage-text
 dotnet format --verify-no-changes && \
 dotnet format analyzers --verify-no-changes && \
 dotnet list package --vulnerable && \
-dotnet test /p:CollectCoverage=true /p:Threshold=80
+dotnet test --collect:"XPlat Code Coverage" && \
+REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)" && \
+dotnet tool install -g dotnet-reportgenerator-globaltool && \
+reportgenerator -reports:"$REPORTPATH" -targetdir:coverage-report -reporttypes:Cobertura && \
+uvx diff-cover coverage-report/Cobertura.xml --fail-under 80 --compare-branch "origin/main"
 ```
 
 ---

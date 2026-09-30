@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 permissions:
   contents: read
@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 工具在 ubuntu-latest 大多预装（clang-format/cppcheck/flawfinder 均小），apt 归档缓存收益≈0，不做
       - name: Install tools
         run: |
           sudo apt-get update
@@ -33,25 +34,70 @@ jobs:
         run: |
           find src include -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.hpp' -o -name '*.h' \) -print0 \
             | xargs -0 flawfinder -m 3 . || true
+
+  # 多平台构建+测试（对齐官方 actions/starter-workflows ci/cmake-multi-platform.yml 矩阵写法）。
+  # 覆盖率需要 gcc/clang 的 --coverage，MSVC 不支持——拆到独立 coverage job（linux）跑。
+  # 计费提示：私有仓库 macOS 计 10x、Windows 2x 分钟数（≈单平台 13x）。单平台足够时
+  # 删掉对应 matrix 条目即可（保留 ubuntu 一行 = 最省）。
   test:
-    name: Test + Coverage (≥80% line)
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, install: "sudo apt-get update && sudo apt-get install -y cmake g++" }
+          - { os: macos-latest, install: "brew install cmake" }
+          - { os: windows-latest, install: "" }   # windows-latest 预装 CMake + MSVC
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        if: matrix.install != ''
+        run: ${{ matrix.install }}
+      - name: Configure (Debug)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build --config Debug --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --config Debug
+
+  coverage:
+    name: Coverage (global + diff ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
-      - name: Install gcovr
-        run: sudo apt-get update && sudo apt-get install -y gcovr
+        with:
+          fetch-depth: 0
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++
+          pipx install gcovr
       - name: Configure (Debug + coverage)
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DAPP_ENABLE_COVERAGE=ON
       - name: Build & Test
         run: |
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
-      - name: Enforce 80% line coverage
-        run: gcovr --fail-under-line 80 --print-summary || { echo "::error::Line coverage < 80%"; exit 1; }
-      - name: Generate coverage report
+      - name: Generate coverage report (cobertura)
         run: gcovr --xml -o coverage.xml
+      - name: Enforce global line coverage
+        run: gcovr --fail-under-line __PANGU_COV__ --print-summary || { echo "::error::Line coverage < __PANGU_COV__%"; exit 1; }
+      # diff coverage：只对相对基线分支新增/修改的行设阈值（SKILL.md 核心原则 4 的落地）
+      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
+      - uses: astral-sh/setup-uv@v4
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover coverage.xml --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}

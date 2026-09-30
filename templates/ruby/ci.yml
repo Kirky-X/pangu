@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 permissions:
   contents: read
@@ -20,7 +20,7 @@ jobs:
           bundler-cache: true
       - run: bundle exec rubocop
   test:
-    name: Test + Coverage (≥80%)
+    name: Test + Coverage (global ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
       - run: bundle exec rspec
-      - name: Enforce 80% line coverage
+      - name: Enforce global line coverage
         run: |
           cov=$(ruby -rjson -e '
             f = "coverage/.last_run.json"
@@ -45,9 +45,13 @@ jobs:
             end
           ' 2>/dev/null || echo 0)
           echo "Line coverage: ${cov}%"
-          # 覆盖率门禁：<80% 即失败（不以 || true 中和）
-          awk -v c="$cov" 'BEGIN{exit !(c+0 < 80)}' && \
-            { echo "::error::Coverage ${cov}% < 80%"; exit 1; }
+          # 覆盖率门禁：<阈值即失败（不以 || true 中和）
+          awk -v c="$cov" 'BEGIN{exit !(c+0 < __PANGU_COV__)}' && \
+            { echo "::error::Coverage ${cov}% < __PANGU_COV__%"; exit 1; }
+      # 已知限制：diff-cover 不支持 simplecov 默认输出（.resultset.json）。
+      # 需要 diff coverage 时：Gemfile 加 gem "simplecov-cobertura" 并设 SimpleCov.formatter
+      # = SimpleCov::Formatter::CoberturaFormatter（产出 coverage.xml），再接
+      # diff-cover coverage.xml --fail-under __PANGU_COV__，见 references/coverage-standards.md
       # 原 curl|bash uploader 已退役（见 go/ci.yml 注释），改官方 action
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}

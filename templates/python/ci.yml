@@ -1,9 +1,9 @@
-# Python CI 质量门禁：ruff(format/lint) / mypy / pytest+cov(80%) / bandit / pip-audit
+# Python CI 质量门禁：ruff(format/lint) / mypy / pytest+cov(阈值占位符) / bandit / pip-audit
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 
 permissions:
@@ -26,15 +26,29 @@ jobs:
       - run: uv run mypy src
 
   test:
-    name: pytest + coverage (≥80%)
+    name: pytest + coverage (global ≥ + diff ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v4
       - run: uv sync --all-extras --dev
-      - run: uv run pytest --cov --cov-fail-under=80
+      # coverage.xml 由 pyproject [tool.pytest.ini_options] addopts 的 --cov-report=xml:coverage.xml 产出
+      - run: uv run pytest --cov --cov-fail-under=__PANGU_COV__
+      # diff coverage：只对相对基线分支新增/修改的行设阈值（SKILL.md 核心原则 4 的落地）
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover coverage.xml --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       - name: Upload to Codecov (可选)
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4

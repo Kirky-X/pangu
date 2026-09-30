@@ -1,3 +1,7 @@
+# lefthook 配置。启用: brew install lefthook && lefthook install
+# 与 .pre-commit-config.yaml 功能等价（含 pre-push 慢检查），二选一即可。
+# diff coverage 依赖 uvx（uv 自带）：未装 uv 可 pip install diff-cover 后把 uvx diff-cover 改为 diff-cover。
+# 工具缺失时的处置见 SKILL.md「常见失败处置」表（注释对应 hook，CI 兜底）。
 pre-commit:
   parallel: true
   commands:
@@ -9,7 +13,21 @@ pre-commit:
     cppcheck:
       glob: "*.{cpp,cc,hpp,h}"
       run: cppcheck --enable=warning,style --suppress=missingInclude --error-exitcode=1 src 2>/dev/null || true
+    no-private-key:
+      run: "! git diff --cached --name-only -z | xargs -0 -r grep -IlE 'BEGIN ((RSA|DSA|EC|OPENSSH|PGP) )?PRIVATE KEY|sk-[A-Za-z0-9]{20,}'"
+
 commit-msg:
   commands:
     conventional:
       run: 'test "$(grep -cE ''^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+'' "$1")" = 1'
+
+pre-push:
+  commands:
+    coverage:
+      name: coverage ≥__PANGU_COV__% (global + diff，linux/gcc)
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DAPP_ENABLE_COVERAGE=ON >/dev/null
+        cmake --build build --parallel
+        ctest --test-dir build --output-on-failure
+        gcovr --fail-under-line __PANGU_COV__ --xml -o coverage.xml
+        uvx diff-cover coverage.xml --fail-under __PANGU_COV__ --compare-branch "origin/__PANGU_BRANCH__"

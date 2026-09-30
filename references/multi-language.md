@@ -48,18 +48,23 @@ FFI 脚本**半自动**：官方工具管骨架（maturin 非交互可参数化�
 1. 以主语言的 `.pre-commit-config.yaml` / `lefthook.yml` 为基底。
 2. 读次语言的 `{lang}-.pre-commit-config.yaml` / `{lang}-lefthook.yml`，提取该语言**专属** hook。
 3. **去重**：以下 hook 主语言基底已含，次语言片段删除同名项：
-   - 私钥扫描（`BEGIN ... PRIVATE KEY` / `sk-...` grep）
+   - 私钥扫描（`no-private-key`，grep 规则与 pre-commit 的 detect-private-key 一致）
    - commit-msg（conventional commits 格式校验）
-4. 把次语言专属 hook 追加到基底（pre-commit 加 `repos:` 条目；lefthook 在对应 `pre-commit`/`pre-push` 段加 `commands:`）。
-5. 删除 `{lang}-.pre-commit-config.yaml` / `{lang}-lefthook.yml` 片段文件。
+4. 把次语言专属 hook 追加到基底（pre-commit 加 `repos:` 条目；lefthook 在对应 `pre-commit` 段加 `commands:`）。
+5. **pre-push 合并**：基底 pre-push 是主语言的覆盖率门禁（全局+diff）。次语言片段的 pre-push 命令**改名追加**（如 `coverage-python`），与主语言门禁并存——各语言各自跑各自的覆盖率，互不替代。
+6. 删除 `{lang}-.pre-commit-config.yaml` / `{lang}-lefthook.yml` 片段文件。
+
+> 替代方案：hook 管理器用 [prek](https://github.com/j178/prek)（drop-in 兼容 `.pre-commit-config.yaml`），其内置 monorepo workspace 模式可各子目录独立配置、一条命令全量跑，免去手动合并。见 `references/hooks-compare.md`。
 
 ### 每语言专属 hook 清单（合并时追加这些，去重私钥/commit-msg）
 
 | 语言   | format                       | lint                                    | 安全审计                             | 类型/测试                              |
 | ------ | ---------------------------- | --------------------------------------- | ------------------------------------ | -------------------------------------- |
-| rust   | `cargo fmt --check`          | `cargo clippy -D warnings`              | `cargo deny` + `cargo audit`         | `cargo llvm-cov --fail-under-lines 80` |
+| rust   | `cargo fmt --check`          | `cargo clippy -D warnings`              | `cargo deny` + `cargo audit`         | `cargo llvm-cov --fail-under-lines <阈值>` |
 | python | `uv run ruff format --check` | `uv run ruff check` + `uv run mypy src` | `uv run bandit` + `uv run pip-audit` | （pytest 由 ci.yml 跑）                |
 | node   | `pnpm exec prettier --check` | `pnpm exec eslint`                      | `pnpm audit --prod`                  | `pnpm run typecheck`                   |
+
+> 阈值 `<阈值>` 由 init `--cov`/`--profile` 渲染（默认 80），以生成项目里的实际值为准。
 
 > 例：`init-multi.sh rust,python` → rust 基底（fmt/clippy/deny/audit/coverage/私钥/commit-msg）+ python 片段追加（ruff format/ruff check/mypy/bandit/pip-audit），python 片段里的私钥扫描与 commit-msg 删除（rust 基底已有）。
 

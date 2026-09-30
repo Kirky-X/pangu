@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   pangu: PHPUnit 配置（src/ → tests/，clover 覆盖率 → coverage.xml）。
-  CI 用 simplexml 解析 coverage.xml 的 metrics 强制 ≥80% line。
+  CI 用 simplexml 解析 coverage.xml 的 metrics 强制覆盖率阈值——
+  阈值由 pangu init 按参数渲染（见 .pangu-meta.yml 的 coverage_threshold）。
 -->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"

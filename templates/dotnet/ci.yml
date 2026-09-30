@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, master]
+    branches: [__PANGU_BRANCH__]
   pull_request:
 permissions:
   contents: read
@@ -17,20 +17,38 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      # NuGet 包缓存：csproj 未变时 restore 直接命中本地缓存
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Restore
         run: dotnet restore
       - name: Format check (no changes written)
         run: dotnet format --verify-no-changes --severity warn
   test:
-    name: Test + Coverage (≥80% line)
+    name: Test + Coverage (global + diff ≥)
     runs-on: ubuntu-latest
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
+      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
+      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Restore
         run: dotnet restore
       - name: Build（触发 SecurityCodeScan 分析器，对应 .NET→Security Code Scan）
@@ -39,14 +57,24 @@ jobs:
         run: dotnet test --no-build --collect:"XPlat Code Coverage" --logger "console;verbosity=normal"
       - name: Install ReportGenerator
         run: dotnet tool install -g dotnet-reportgenerator-globaltool
-      - name: Enforce 80% line coverage
+      - name: Enforce global line coverage
         run: |
           REPORTPATH="$(find . -path '*/coverage.cobertura.xml' | head -1)"
           if [ -z "$REPORTPATH" ]; then echo "No cobertura report found"; exit 1; fi
           reportgenerator -reports:"$REPORTPATH" -targetdir:coverage-report -reporttypes:Cobertura
           LINERATE=$(grep -oE 'line-rate="[0-9.]+"' coverage-report/Cobertura.xml | head -1 | grep -oE '[0-9.]+')
           echo "Line rate: $LINERATE"
-          awk -v r="$LINERATE" 'BEGIN{ exit (r+0 >= 0.80) ? 0 : 1 }'
+          awk -v r="$LINERATE" -v t="__PANGU_COV__" 'BEGIN{ exit (r*100 >= t+0) ? 0 : 1 }'
+      # diff coverage：cobertura 为 diff-cover 原生格式，只对相对基线分支新增/修改的行设阈值
+      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
+      - uses: astral-sh/setup-uv@v4
+      - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
+        env:
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
+        run: |
+          uvx diff-cover coverage-report/Cobertura.xml --fail-under __PANGU_COV__ \
+            --compare-branch "origin/${BASE_BRANCH}"
       # 已退役的 curl|bash uploader（2023 安全事件后官方下线），改官方 codecov-action
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
@@ -61,6 +89,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - run: dotnet restore
       - name: SecurityCodeScan（编译期安全分析器，已通过 init-dotnet.sh dotnet add package SecurityCodeScan.VS2019 引入）
         run: dotnet build --no-restore

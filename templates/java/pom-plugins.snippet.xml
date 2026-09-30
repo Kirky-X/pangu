@@ -9,7 +9,7 @@
   <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   <checkstyle.version>10.17.0</checkstyle.version>
   <spotbugs.version>4.8.6</spotbugs.version>
-  <jacoco.minimum.lineRatio>0.80</jacoco.minimum.lineRatio>
+  <jacoco.minimum.lineRatio>0.__PANGU_COV__</jacoco.minimum.lineRatio>
 </properties>
 
 <build>
@@ -86,7 +86,7 @@
       </configuration>
     </plugin>
 
-    <!-- JaCoCo: 覆盖率门禁（≥80% line） -->
+    <!-- JaCoCo: 覆盖率门禁（阈值 = jacoco.minimum.lineRatio，init 时按 --cov/--profile 渲染） -->
     <plugin>
       <groupId>org.jacoco</groupId>
       <artifactId>jacoco-maven-plugin</artifactId>

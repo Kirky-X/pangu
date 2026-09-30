@@ -12,6 +12,35 @@
 
 > 行业基准：Google SRE/工程文化 ~80%，Microsoft 多数项目 75-80%，开源旗舰项目（Linux kernel 子系统、kubernetes）80%+。**低于 70% 的门禁形同虚设**，不要设。
 
+## diff coverage（变更覆盖率）——pangu 已落地
+
+只看总覆盖率的盲区：存量 85% + 新增 0% 也可能过线。pangu 的落地方式：全局门禁（≥阈值）之外，**diff coverage（≥阈值）双门禁**，跑在 CI `test/coverage` job 与 lefthook `pre-push` 两处，阈值由 `--cov`/`--profile` 一次性渲染（`__PANGU_COV__` 占位符）。
+
+| 语言 | 报告产物 | diff-cover 兼容 | CI 位置 |
+| --- | --- | --- | --- |
+| Rust | `cargo llvm-cov --lcov` → lcov.info | ✅ LCov | ci.yml test job + lefthook pre-push |
+| Python | pytest `--cov-report=xml` → coverage.xml (cobertura) | ✅ Cobertura | 同上 |
+| Node/TS | vitest reporter "lcov" → coverage/lcov.info | ✅ LCov | 同上 |
+| Java | JaCoCo → target/site/jacoco/jacoco.xml | ✅ JaCoCo XML | 同上 |
+| C/C++ | gcovr `--xml` → coverage.xml (cobertura) | ✅ Cobertura | 同上 |
+| PHP | phpunit `--coverage-clover` → coverage.xml | ✅ Clover | 同上 |
+| .NET | Coverlet → cobertura（ReportGenerator 归一） | ✅ Cobertura | 同上 |
+| Go | go 原生 coverprofile | ❌ 不支持（见下） | 仅全局门禁 |
+| Ruby | simplecov .resultset.json | ❌ 不支持（见下） | 仅全局门禁 |
+
+CI 内的统一命令形态（setup-uv 后 `uvx diff-cover`，uv 缓存避免每次冷安装；本地 lefthook pre-push 同样用 `uvx`）：
+
+```bash
+uvx diff-cover <report> --fail-under 80 --compare-branch "origin/main"
+```
+
+> **版本策略决策**：模板刻意不 pin diff-cover 版本（`uvx diff-cover` 拉最新）——门禁工具随上游修复更新，升级风险由「pin 了也会过期的通用工具」兜不住；若项目要求可复现，可自行改为 `uvx --from 'diff-cover==9.x'` 并交给 Dependabot 管理。另有 CI checkout 权衡：diff-cover 需要 `fetch-depth: 0`（全历史），超大仓库可达分钟级，fork PR 会把全量历史拉进 runner——历史误提交过敏感文件的项目请先清洗历史再开源。
+
+**已知限制与升级路径**：
+
+- **Go**：diff-cover 不解析 `go test -coverprofile` 原生格式。升级路径：`go install github.com/axw/gocov/gocov@latest && gocov convert c.out | gocov-xml > coverage.xml`（cobertura），再接 diff-cover。
+- **Ruby**：simplecov 默认输出不被支持。升级路径：Gemfile 加 `gem "simplecov-cobertura"`，`SimpleCov.formatter = SimpleCov::Formatter::CoberturaFormatter`（产出 coverage.xml），再接 diff-cover。
+
 ## 各语言覆盖率工具与门禁配置
 
 ### Rust — `cargo-llvm-cov`（首选，基于 LLVM，比 tarpaulin 快且稳）
@@ -123,11 +152,11 @@ dotnet test /p:CollectCoverage=true /p:Threshold=80 /p:ThresholdType=line /p:Cov
 
 覆盖率阈值必须**同时**配置在：
 
-1. **本地 hook**（pre-commit/lefthook 里的测试阶段）—— 立即反馈
-2. **CI workflow**（`ci.yml` 的 test job）—— 阻断 PR
+1. **本地 hook**（lefthook `pre-push` 的覆盖率门禁；pre-commit framework 无 push 阶段，由 CI 兜底）—— 推送前反馈
+2. **CI workflow**（`ci.yml` 的 test/coverage job，全局 + diff 双门禁）—— 阻断 PR
 3. **工具配置文件**（`pyproject.toml` / `vitest.config` / `pom.xml` 等）—— 单一真相源
 
-三处数字不一致 = 门禁可绕过。改动阈值时三处同步。
+pangu 通过 `__PANGU_COV__` 占位符一次性渲染三处（`--cov`/`--profile` 传入），天然一致；改动阈值时三处同步。
 
 ## 反模式（不要做）
 
