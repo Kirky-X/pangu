@@ -140,6 +140,7 @@ jobs:
             github/PULL_REQUEST_TEMPLATE.md \
             .editorconfig \
             .pre-commit-config.yaml \
+            release-please.yml \
             LICENSE-MIT \
             Dockerfile; do
             [ -f "templates/common/$f" ] || { echo "MISSING: templates/common/$f"; exit 1; }
@@ -194,18 +195,18 @@ jobs:
           print(f"  OK skill.json (name={data['name']}, version={data['version']})")
           PY
 
-      # 引用一致性：SKILL.md 中提到的脚本必须实际存在
-      - name: Verify SKILL.md script references
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import re, os, sys
-          with open('SKILL.md') as f:
-              content = f.read()
-          refs = set(re.findall(r'\b(init-[a-z0-9-]+\.sh|install-hooks\.sh|_common\.sh)\b', content))
-          missing = [r for r in refs if not os.path.isfile(f'scripts/{r}')]
-          if missing:
-              print(f"SKILL.md references non-existent scripts: {missing}", file=sys.stderr)
-              sys.exit(1)
-          print(f"  OK All {len(refs)} script references in SKILL.md exist")
-          PY
+      # SKILL.md 引用校验 + 模板完整性：单一实现在 scripts/selfcheck.sh（避免双实现漂移）。
+      # SMC_SKIP=1 跳过 init 冒烟（本 workflow 有独立 smoke job，避免同一次 push 跑两遍）。
+      # shellcheck/YAML lint 与 lint job 重复属可接受冗余（并行 job，独立定位失败）。
+      - name: Selfcheck (index + integrity, smoke skipped)
+        run: SMC_SKIP=1 bash scripts/selfcheck.sh
+
+  # init 端到端冒烟：9 语言 templates-only 真跑 init 脚本并断言产物
+  # （文件齐全/占位符渲染/YAML 可解析/git 初始化/hook 等价性基线/参数化裁剪）
+  smoke:
+    name: init 冒烟（9 语言 templates-only）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Run smoke tests
+        run: bash scripts/smoke-test.sh
