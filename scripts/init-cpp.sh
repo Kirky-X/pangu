@@ -31,7 +31,7 @@ fi
 log "C/C++ 骨架已生成 (src/ include/ tests/)"
 
 copy_common
-copy_lang cpp   # 模板含 CMakeLists.txt / .clang-format / .clang-tidy
+copy_lang cpp   # 模板含 CMakeLists.txt / ci.yml / lefthook.yml / .pre-commit-config.yaml / .gitignore（clang-format/clang-tidy 由 CI 安装执行，无独立模板文件）
 
 git_init
 install_hooks

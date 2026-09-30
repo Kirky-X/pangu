@@ -38,9 +38,10 @@ fi
 if ! command -v python3 >/dev/null 2>&1; then
   printf '\033[1;33m!\033[0m pangu selfcheck: 未安装 python3，跳过 YAML lint\n' >&2
 else
-  shopt -s nullglob
-  yamls=(templates/**/*.yml templates/**/*.yaml)
-  shopt -u nullglob
+  # find 而非 glob：** 在未开 globstar 时退化为单层，且 * 不匹配点开头文件
+  # （glob 会漏掉全部 .pre-commit-config.yaml / .golangci.yaml / .rubocop.yml 与 github/ 深层文件）
+  yamls=()
+  while IFS= read -r f; do yamls+=("$f"); done < <(find templates -type f \( -name '*.yml' -o -name '*.yaml' \))
 
   if [ "${#yamls[@]}" -gt 0 ]; then
     printf '\033[1;34m[harness]\033[0m YAML lint %d 个模板文件\n' "${#yamls[@]}"
