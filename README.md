@@ -1,6 +1,6 @@
 # Pangu（盘古）— 项目 Harness 初始化技能
 
-> 把空目录变成带完整质量护栏的项目：语言脚手架 + Git + GitHub CI 质量门禁 + tag 触发的 Release 发布 + 本地 pre-commit/lefthook 双检查 + 覆盖率门禁（底线 80%）。
+> 把空目录变成带完整质量护栏的项目：语言脚手架 + Git + GitHub CI 质量门禁 + tag 触发的 Release 发布 + 本地 pre-commit/lefthook 双检查 + 覆盖率双门禁（全局 + diff coverage）。
 
 [![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FKirky-X%2Fpangu%2Fmain%2Fskill.json&query=%24.version&label=version&style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub Release](https://img.shields.io/github/v/release/Kirky-X/pangu?style=flat-square)](https://github.com/Kirky-X/pangu/releases) [![GitHub License](https://img.shields.io/github/license/Kirky-X/pangu?style=flat-square)](LICENSE)
 
@@ -11,11 +11,14 @@
 - **9 语言一键初始化**：Rust / Python / Node / Java / Go / C++ / Ruby / PHP / .NET，每语言配套专属 CI 模板、Release 工作流、安全扫描（cargo-audit、bandit、gosec、OWASP Dep-Check 等）与覆盖率工具
 - **3 种混合形态**：并存型 monorepo（`init-multi.sh`）、FFI rust→python（`init-rust-pyo3.sh`）、FFI rust→node（`init-rust-napi.sh`）
 - **第 10 种项目类型：skill 仓库本身**：`init-skill.sh` 一键初始化标准 skill 仓库；`align-skill.sh` 对齐存量 skill（`--dry-run`/`--fix`）；`bump-skill-version.sh` 传播版本号
-- **门禁即代码**：`.pre-commit-config.yaml` 为门禁单一来源，lefthook + CI 镜核心子集，阈值统一（fast 核心：格式/lint/license-deny；slow：覆盖率 ≥80% + 安全审计 → pre-push + CI）
-- **覆盖率门禁真实生效**：Go/Ruby CI 用 `--cov-fail-under=80` / awk 阈值判定硬失败，不以 `|| true` 中和；上传统一走官方 `codecov-action@v4`；Go 的 gosec 钉版 `@v2.21.4`
-- **条件发布**：Release 工作流（`v*` tag 触发）无条件产出 GitHub Release；仅当对应 secret 存在才推 registry（crates.io / PyPI / npm / Maven Central / RubyGems / NuGet），无 secret 跳过不报错
+- **门禁即代码**：`.pre-commit-config.yaml` 为门禁单一来源，lefthook + CI 镜核心子集，阈值统一（fast 核心：格式/lint/license-deny；slow：覆盖率全局+diff 双门禁 + 安全审计 → lefthook pre-push + CI，9 语言等价，冒烟测试守护）
+- **diff coverage 双门禁**：全局覆盖率之外，对相对基线分支的新增/修改行同样设阈值（diff-cover 对接 7 语言；Go/Ruby 暂仅全局，升级路径见 coverage-standards）——新代码 0 覆盖无法再靠存量拉高全局通过
+- **参数化阈值**：init 支持 `--cov <N>` / `--profile core|tool`（核心业务 85 / 工具类 70）/ `--branch` / `--no-release` / `--no-codeql` / `--changelog release-please`，阈值与分支经占位符渲染进 CI/lefthook/工具配置三处，天然一致
+- **两段式 Release**：tag 触发先跑 `verify` job（tag 格式 + tag↔版本 manifest 一致性），tag 打错不进入构建；rust/go/cpp/php 产物附 checksums.txt，npm 发布带 provenance（详见 registry-secrets 的 attestation/cosign 加固）
+- **生成来源可追溯**：init 写入 `.pangu-meta.yml`（pangu 版本/参数/harness 文件清单），模板升级时对照对应 tag 手动 diff；`doctor.sh` 一键体检已生成项目
+- **覆盖率门禁真实生效**：阈值判定硬失败，不以 `|| true` 中和；上传统一走官方 `codecov-action@v4`；cpp 三平台构建矩阵 + 独立覆盖率 job；cpp/php/dotnet CI 依赖缓存
 - **自身 CI SHA-pin**：pangu 仓库的 workflows 对所有第三方 action 使用 commit SHA 固定引用
-- **依赖护栏**：Dependabot + CodeQL + 各语言专属 SCA
+- **依赖护栏**：Dependabot + CodeQL（`--no-codeql` 可裁剪）+ 各语言专属 SCA
 
 ## 📦 安装
 
@@ -37,9 +40,10 @@ npx skills add Kirky-X/pangu --agent claude-code -y
 ```bash
 cd /path/to/project   # 空目录最佳；已有项目目录会被覆盖部分配置，先确认
 
-# 语言初始化（脚本自包含：语言脚手架 + harness 模板 + git init + 装 hooks）
+# 语言初始化（脚本自包含：语言脚手架 + harness 模板 + 占位符渲染 + .pangu-meta + git init + 装 hooks）
 bash "$SKILL/scripts/init-python.sh" my-project
-bash "$SKILL/scripts/init-rust.sh" my-project
+bash "$SKILL/scripts/init-rust.sh" my-project --profile core   # 核心业务阈值 85
+bash "$SKILL/scripts/init-go.sh" my-project --branch master --no-codeql
 
 # 混合项目
 bash "$SKILL/scripts/init-multi.sh" rust,python,node my-monorepo   # 并存型
@@ -49,23 +53,21 @@ bash "$SKILL/scripts/init-multi.sh" rust,python,node my-monorepo   # 并存型
 bash "$SKILL/scripts/init-skill.sh" my-skill --cn-name 我的技能
 ```
 
-初始化后按提示：启用本地 hook（`pre-commit install` 或 `lefthook install` 二选一）→ 本地复现 CI 等价命令全绿 → 配置发布 secret（可选）→ push 触发 CI / 推 `v*` tag 触发 Release。
+初始化后按提示：启用本地 hook（`pre-commit install` / `lefthook install` / `prek install` 三选一，配置已生成）→ 本地复现 CI 等价命令全绿（含 diff coverage）→ 配置发布 secret（可选）→ push 触发 CI / 推 `v*` tag 触发 Release。诊断已生成项目：`bash "$SKILL/scripts/doctor.sh" "$(pwd)"`。
 
 ```mermaid
 flowchart LR
-    A["阶段0 意图确认"] --> B["阶段1 init-{L}.sh"] --> C["阶段2 CI 门禁"] --> D["阶段3 Release"] --> E["阶段4 依赖护栏"] --> F["阶段5 验证 STOP"]
+    A["阶段0 意图确认+旗标"] --> B["阶段1 init-{L}.sh"] --> C["阶段2 CI 门禁(全局+diff)"] --> D["阶段3 Release(两段式)"] --> E["阶段4 依赖护栏"] --> F["阶段5 验证+doctor STOP"]
 ```
 
 ## ✅ 测试与验证
 
-2026-09-13 实测（v0.1.4，与 git tag 一致）：
+2026-10-01 实测（v0.1.6 未发布，工作区版本）：
 
-- **自检门禁**：`bash scripts/selfcheck.sh` 全部通过 — shellcheck 检查 20 个脚本 0 错误、YAML lint 校验 27 个模板文件、9+1 语言模板完整性（ci.yml / release.yml / .pre-commit-config.yaml / lefthook.yml / .gitignore）通过
-- **功能实测**（临时目录）：
-  - `init-python.sh demo-py`：产出 `pyproject.toml` + `src/` + `.pre-commit-config.yaml` + `lefthook.yml` + `.github/workflows/{ci.yml,codeql.yml,release.yml}`，CI 含 `uv run pytest --cov --cov-fail-under=80`
-  - `init-rust.sh demo-rs`：产出 `Cargo.toml` + `rustfmt.toml` + `clippy.toml` + `deny.toml` + 同套 workflows
-  - Go/Ruby 模板覆盖率门禁为硬失败判定（awk 阈值比较，无 `|| true`）
-- pangu 自身 CI（`.github/workflows/ci.yml`）对所有 action 使用 commit SHA 固定引用
+- **自检门禁**：`bash scripts/selfcheck.sh` 全部通过 — shellcheck 22 个脚本 0 错误、YAML lint 42 个模板文件、9+1 语言模板完整性、SKILL.md 索引校验（70 个引用路径 fail-closed）、init 冒烟测试
+- **init 冒烟测试**（`scripts/smoke-test.sh`，templates-only 端到端）：9 语言 × 默认参数（文件齐全/占位符零残留/YAML 可解析/git 初始化/lefthook 等价性基线/no snippet 残留）+ 参数化断言（`--cov 90 --branch trunk --no-release --no-codeql` 渲染与裁剪正确）全绿
+- **doctor 实测**：对冒烟产物跑 `scripts/doctor.sh` 全部通过（文件/YAML/hooks/门禁/来源记录）
+- pangu 自身 CI（`.github/workflows/ci.yml`）对所有 action 使用 commit SHA 固定引用，含 lint / integrity / smoke 三类 job
 
 ## 📁 目录结构
 
@@ -73,15 +75,16 @@ flowchart LR
 pangu/
 ├── SKILL.md            # 路由表 + 5 阶段流程 + 失败处置
 ├── skill.json
-├── scripts/            # 20 个脚本
+├── scripts/            # 22 个脚本
 │   ├── init-{rust,python,node,java,go,cpp,ruby,php,dotnet}.sh
 │   ├── init-multi.sh / init-rust-pyo3.sh / init-rust-napi.sh
 │   ├── init-skill.sh / align-skill.sh / bump-skill-version.sh
 │   ├── install-hooks.sh / _common.sh / selfcheck.sh
+│   ├── smoke-test.sh / doctor.sh
 │   └── install-skill.sh
 ├── templates/          # 11 个模板目录
-│   ├── common/             # dependabot / codeql / issue-pr 模板 / CODEOWNERS
-│   ├── {rust,…,dotnet}/    # 各语言 CI / release / hook 配置
+│   ├── common/             # dependabot / codeql / issue-pr 模板 / CODEOWNERS / release-please(opt-in)
+│   ├── {rust,…,dotnet}/    # 各语言 CI(全局+diff 覆盖率) / release(verify 两段式) / hook 配置
 │   └── skill/              # skill 仓库模板（9 个 .template 文件）
 └── references/         # 7 篇参考（languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization）
 ```

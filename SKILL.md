@@ -32,10 +32,10 @@ flowchart TD
 1. **预存资产优先** — 所有 CI/release/hook/配置均为本 skill 目录下的**预存模板与脚本**，直接复制/调用，不凭空生成。改命令前先读 `references/`。
 2. **门禁即代码** — `.pre-commit-config.yaml` 为门禁单一来源（检查项最全），lefthook + CI 镜核心子集，阈值统一避免「本地过、CI 红」：
    - **fast 核心**（格式 / lint / license-deny）→ pre-commit + lefthook + CI 三处一致，每次提交即跑
-   - **fast 辅助**（私钥扫描 / 拼写 / 大文件 / 尾随空格）→ pre-commit 最全；lefthook 镜私钥扫描；CI 不重复（本地拦截优先，CI 专注核心 + slow）
-   - **slow**（覆盖率 ≥80% / 安全审计）→ lefthook `pre-push` + CI，阈值一致；pre-commit framework 无 push 钩子，由 CI 兜底
-3. **条件发布** — Release 工作流默认产出 GitHub Release 产物；**仅当对应 secret 存在**时才推 registry（crates.io / PyPI / npm / Maven Central / RubyGems / Packagist / NuGet）。无 secret 不报错，只跳过。
-4. **覆盖率行业底线 80%** — 核心业务逻辑 85%+，工具类 70%+。详见 `references/coverage-standards.md`。
+   - **fast 辅助**（私钥扫描 / 拼写 / 大文件 / 尾随空格）→ pre-commit 最全；lefthook 镜私钥扫描（9 语言全部）；CI 不重复（本地拦截优先，CI 专注核心 + slow）
+   - **slow**（覆盖率全局+diff 双门禁 / 安全审计）→ lefthook `pre-push`（9 语言全部）+ CI，阈值一致；pre-commit framework 无 push 钩子，由 CI 兜底。等价性由 `scripts/selfcheck.sh` 冒烟断言守护
+3. **条件发布** — Release 工作流默认产出 GitHub Release 产物；**仅当对应 secret 存在**时才推 registry（crates.io / PyPI / npm / Maven Central / RubyGems / Packagist / NuGet）。无 secret 不报错，只跳过。tag 打错/版本不一致在首个 `verify` job 失败，不进入构建发布（两段式）。
+4. **覆盖率行业底线 80%** — 核心业务逻辑 85%+（`--profile core`），工具类 70%+（`--profile tool`），或 `--cov <N>` 自定。阈值渲染进 CI/lefthook/工具配置三处（`__PANGU_COV__` 占位符）。**diff coverage 双门禁**：全局覆盖率之外，对相对基线分支的新增/修改行同样设阈值（Go/Ruby 暂仅全局，升级路径见 `references/coverage-standards.md`）。
 5. **不臆测未读脚本** — 调用 `scripts/init-{L}.sh` 前先 Read 它，确认行为与用户需求一致；不盲目 `bash` 未知脚本。
 
 ---
@@ -122,35 +122,50 @@ init-skill.sh 完成 skill 仓库初始化后，发版时按 `references/skill-r
 
 复述给用户：语言、包管理器偏好、是否发 registry、项目路径。**🛑 破坏性操作（在已有项目目录跑 init 会覆盖 .gitignore/CI 文件）前必须确认**；空目录可直接执行。语言/包管理器未定 → 必须先 AskUserQuestion 暴露权衡，禁止替用户拍板。
 
+可选 harness 旗标（按需求向用户确认后追加到 init 命令）：
+
+| 旗标 | 作用 | 默认 |
+| --- | --- | --- |
+| `--cov <N>` | 覆盖率门禁阈值（10-99） | 80 |
+| `--profile core\|tool` | 分级预设：核心业务 85 / 工具类 70 | 80 |
+| `--branch <name>` | 默认分支（CI 触发 + diff coverage 基线） | main |
+| `--no-release` | 不生成 release.yml | 生成 |
+| `--no-codeql` | 不生成 codeql.yml | 生成 |
+| `--changelog release-please` | 附加 Release PR 自动维护 CHANGELOG（前提：commit 语义合规） | 人工维护 |
+| `--templates-only` | 只拷 harness 模板，跳过脚手架与依赖安装（存量项目叠加/冒烟测试） | 完整初始化 |
+
 ### 阶段 1 · 语言初始化
 
 ```bash
 cd /path/to/project
-bash "$SKILL/scripts/init-rust.sh" my-project   # $SKILL = 本 skill 安装目录（如 ~/.zcode/skills/pangu）
+bash "$SKILL/scripts/init-rust.sh" my-project                # 最简
+bash "$SKILL/scripts/init-rust.sh" my-project --profile core # 核心业务阈值 85
+bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 ```
 
-脚本自包含：语言原生脚手架 + 拷贝 harness 模板（`templates/common/` + `templates/{L}/`）+ git init + 装本地 hooks（pre-commit framework + lefthook 双产出，择一启用，详见 `references/hooks-compare.md`）。多语言混合项目走专属脚本（见上方「混合项目路由」），脚本内部 4 步流程详见各 `init-{L}.sh` 头部注释。
+脚本自包含：语言原生脚手架 + 拷贝 harness 模板（`templates/common/` + `templates/{L}/`）+ 渲染占位符（阈值/分支）+ 写 `.pangu-meta.yml` 生成来源记录 + git init + 装本地 hooks（pre-commit framework + lefthook 双产出，择一启用，详见 `references/hooks-compare.md`）。多语言混合项目走专属脚本（见上方「混合项目路由」），脚本内部 4 步流程详见各 `init-{L}.sh` 头部注释。
 
 ### 阶段 2 · GitHub CI 质量门禁
 
-`.github/workflows/ci.yml` 在每个 PR/push 时跑等价本地 hook + 覆盖率门禁：`checkout → toolchain → 依赖 → 格式 → lint → 安全扫描 → 测试 + 覆盖率(≥80%) → 上传覆盖率报告`。任一步非零退出码 = 阻断合并。
+`.github/workflows/ci.yml` 在每个 PR/push 时跑等价本地 hook + 覆盖率双门禁：`checkout(fetch-depth:0) → toolchain → 依赖(缓存) → 格式 → lint → 安全扫描 → 测试 + 全局覆盖率(≥阈值) + diff 覆盖率(变更行 ≥阈值) → 上传覆盖率报告`。任一步非零退出码 = 阻断合并。cpp 模板为三平台构建矩阵 + 独立 linux 覆盖率 job。
 
 ### 阶段 3 · Release 发布工作流
 
-`.github/workflows/release.yml` 由 `v*` tag 触发：构建产物 → 创建 GitHub Release（无条件）→ 若对应 secret 存在则发布到 registry（crates.io / PyPI / npm / Maven Central / RubyGems / NuGet），无 secret 跳过不报错。Secret 清单见 `references/registry-secrets.md`。
+`.github/workflows/release.yml` 由 `v*` tag 触发，两段式：**verify job 先行**（tag 格式 + tag↔版本 manifest 一致性，rust/python/node/java/cpp/ruby 校验版本文件；go/php/dotnet 无版本 manifest，校验 tag 规范）→ 构建 → 创建 GitHub Release（无条件；rust/go/cpp/php 附 checksums.txt）→ 若对应 secret 存在则发布到 registry（crates.io / PyPI / npm(--provenance) / Maven Central / RubyGems / NuGet），无 secret 跳过不报错。Secret 清单见 `references/registry-secrets.md`（含产物签名/attestation 加固）。`--changelog release-please` 时另有 `release-please.yml` 自动维护 CHANGELOG.md。
 
 ### 阶段 4 · 依赖与安全护栏
 
 - **Dependabot**（`.github/dependabot.yml`）：依赖与 GitHub Actions 版本自动升级 PR
-- **CodeQL**（`.github/codeql.yml`）：语义级漏洞扫描
+- **CodeQL**（`.github/workflows/codeql.yml`）：语义级漏洞扫描（`--no-codeql` 可裁剪）
 - 各语言另有专属 SCA（cargo-audit / pip-audit / npm audit / OWASP Dep-Check / govulncheck / bundler-audit / composer audit / dotnet list --vulnerable）
 
 ### 🛑 阶段 5 · 验证（标记完成前必做 · STOP）
 
-1. **本地复现 CI**：按 `references/languages.md` 对应语言「本地复现」段手动跑一遍 CI 等价命令，全绿
+1. **本地复现 CI**：按 `references/languages.md` 对应语言「本地复现」段手动跑一遍 CI 等价命令（含 diff coverage），全绿
 2. **hook 触发验证**：做一次小改动 `git commit`，确认 pre-commit/lefthook 真的拦截了故意引入的格式错误
-3. **文件清点**：`ls .github/workflows/` 应有 `ci.yml release.yml`；根目录应有 `.pre-commit-config.yaml lefthook.yml .editorconfig .gitignore`
+3. **文件清点**：`ls .github/workflows/` 应有 `ci.yml release.yml`（按参数可能另有 `release-please.yml`，或无 release.yml/codeql.yml）；根目录应有 `.pre-commit-config.yaml lefthook.yml .editorconfig .gitignore .pangu-meta.yml`
 4. **YAML 语法**：`python3 -c "import yaml,glob;[yaml.safe_load(open(f)) for f in glob.glob('**/*.y*ml',recursive=True)]"` 无异常
+5. **一键体检**：`bash "$SKILL/scripts/doctor.sh" "$(pwd)"` 全绿（文件/YAML/hooks/门禁/来源记录）
 
 ---
 
@@ -158,17 +173,21 @@ bash "$SKILL/scripts/init-rust.sh" my-project   # $SKILL = 本 skill 安装目�
 
 执行 init 或 hook 时遇以下症状，按「一线修复」处理；仍失败用「兜底」。覆盖 9 语言共性失败：
 
-| 症状                                                      | 一线修复                                                                                   | 仍失败兜底                                                         |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 症状                                                      | 一线修复                                                                                   | 兜底                                                         |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `cargo llvm-cov` / `cargo-audit` / `cargo-deny` not found | `cargo install cargo-llvm-cov cargo-audit cargo-deny`                                      | 注释 `lefthook.yml` / `.pre-commit-config.yaml` 对应 hook，CI 兜底 |
-| `cargo deny check` 报无 config                            | `cargo deny init` 生成 deny.toml                                                           | 删 deny hook，CI cargo-deny-action 兜底                            |
-| pre-commit 报 `cargo / python not found`                  | 装工具链（rustup / python），重跑 `pre-commit run --all-files`                             | 切 lefthook（Go 二进制，无运行时依赖）                             |
-| CI coverage 红（<80%）                                    | 本地复现等价命令（`references/languages.md` 「本地复现」段）                               | 工具类降至 70%（`references/coverage-standards.md` 允许）          |
-| `lefthook install` 报未安装                               | `brew install lefthook` 或 `npm i -g @evilmartians/lefthook`                               | 切 pre-commit                                                      |
-| node `pnpm add` 报 store 权限                             | `pnpm config set store-dir ~/.local/share/pnpm/store`                                      | 手动 `pnpm install` 后重跑 `init-node.sh`                          |
-| 多语言 `ci.yml` 被次语言覆盖                              | 用 `init-multi.sh`（次语言自动 `{lang}-ci.yml` 前缀）；手动并存按 `multi-language.md` 改名 | 手动把后拷语言 `ci.yml`→`{lang}-ci.yml`                            |
-| hook 片段合并遗漏（次语言检查没跑）                       | 按 `references/multi-language.md`「hook 合并」逐条核对并去重                               | 暂保留片段文件，CI 各 `{lang}-ci.yml` 兜底                         |
-| `init-rust-pyo3.sh` / `init-rust-napi.sh` 报脚手架未就位  | 先跑 `maturin new --mixed --bindings pyo3 <name>` / `napi new`，再重跑本脚本               | 确认同根有 `Cargo.toml` + `pyproject.toml`/`package.json`          |
+| `diff-cover` not found（pre-push）                        | `pip install diff-cover` 后把 `uvx diff-cover` 改为 `diff-cover`；或 `uv tool install uv`  | 注释 lefthook pre-push 的 coverage 命令，CI 兜底              |
+| `uvx: command not found`（CI diff coverage 步骤）        | setup-uv 已在 coverage job 预置；本地装 `uv`（`curl -LsSf https://astral.sh/uv/install.sh \| sh`） | 极端环境改 `pip install diff-cover` 后把 uvx 改 diff-cover    |
+| release `verify` job 报 tag 与版本 manifest 不一致        | 以 tag 为准 bump 版本文件（Cargo.toml/pyproject/package.json/pom/gemspec/CMakeLists）后重打 tag | 属预期拦截，不是故障——两段式设计目的即此                      |
+| `cargo deny check` 报无 config                            | `cargo deny init` 生成 deny.toml                                                           | 删 deny hook，CI cargo-deny-action 兜底                       |
+| pre-commit 报 `cargo / python not found`                  | 装工具链（rustup / python），重跑 `pre-commit run --all-files`                             | 切 lefthook 或 [prek](https://github.com/j178/prek)（自动托管工具链） |
+| CI coverage 红（低于阈值）                                | 本地复现等价命令（`references/languages.md` 「本地复现」段），注意 diff 与全局两道门禁     | 工具类降至 70%（`--profile tool` 渲染，见 `coverage-standards.md`） |
+| diff coverage 红（全局达标但变更行未覆盖）                | 为本次改动补测试——这是门禁设计目的，不是误报                                               | 无（不允许豁免；历史债用 feature 分支渐进还）                 |
+| `lefthook install` 报未安装                               | `brew install lefthook` 或 `npm i -g @evilmartians/lefthook`                               | 切 pre-commit 或 prek                                         |
+| node `pnpm add` 报 store 权限                             | `pnpm config set store-dir ~/.local/share/pnpm/store`                                      | 手动 `pnpm install` 后重跑 `init-node.sh`                     |
+| 多语言 `ci.yml` 被次语言覆盖                              | 用 `init-multi.sh`（次语言自动 `{lang}-ci.yml` 前缀）；手动并存按 `multi-language.md` 改名 | 手动把后拷语言 `ci.yml`→`{lang}-ci.yml`                       |
+| hook 片段合并遗漏（次语言检查没跑）                       | 按 `references/multi-language.md`「hook 合并」逐条核对并去重（含 pre-push 改名追加）       | 暂保留片段文件，CI 各 `{lang}-ci.yml` 兜底                    |
+| `init-rust-pyo3.sh` / `init-rust-napi.sh` 报脚手架未就位  | 先跑 `maturin new --mixed --bindings pyo3 <name>` / `napi new`，再重跑本脚本               | 确认同根有 `Cargo.toml` + `pyproject.toml`/`package.json`     |
 
 ---
 
@@ -184,12 +203,15 @@ bash "$SKILL/scripts/init-rust.sh" my-project   # $SKILL = 本 skill 安装目�
 | 资产                               | 路径                                                               | 何时读         |
 | ---------------------------------- | ------------------------------------------------------------------ | -------------- |
 | 9 语言工具链速查（含本地复现命令） | `references/languages.md`                                          | 阶段 1/6       |
-| 行业覆盖率门禁标准                 | `references/coverage-standards.md`                                 | 配置覆盖率阈值 |
-| pre-commit vs lefthook 选型        | `references/hooks-compare.md`                                      | 阶段 2         |
-| 各 registry secret 配置            | `references/registry-secrets.md`                                   | 阶段 4         |
+| 行业覆盖率门禁标准（含 diff coverage 落地矩阵） | `references/coverage-standards.md`                                 | 配置覆盖率阈值 |
+| pre-commit vs lefthook vs prek 选型 | `references/hooks-compare.md`                                      | 阶段 2         |
+| 各 registry secret + 产物完整性加固 | `references/registry-secrets.md`                                   | 阶段 4         |
 | 公共函数库（被各 init source）     | `scripts/_common.sh`                                               | 改脚本前必读   |
 | 一键初始化脚本                     | `scripts/init-{L}.sh`                                              | 阶段 1         |
 | 本地 hook 安装                     | `scripts/install-hooks.sh`                                         | 阶段 2         |
+| 已生成项目诊断（doctor）           | `scripts/doctor.sh`                                                | 阶段 5 / 排障  |
+| init 冒烟测试（9 语言端到端）      | `scripts/smoke-test.sh`                                            | 改模板/脚本后  |
+| release-please 可选模板（opt-in）  | `templates/common/release-please.yml`                              | `--changelog release-please` |
 | 模板根                             | `templates/{common,rust,python,node,java,go,cpp,ruby,php,dotnet}/` | 所有阶段       |
 | 多语言项目指引（决策树+hook 合并） | `references/multi-language.md`                                     | 混合项目       |
 | 并存型 monorepo 编排               | `scripts/init-multi.sh`                                            | 混合项目       |
