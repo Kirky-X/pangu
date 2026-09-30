@@ -6,9 +6,40 @@ permissions:
   contents: write
   packages: write
 jobs:
+  # 前置校验两段式：tag 打错或版本不一致在这里失败，不进入构建与发布
+  verify:
+    name: Verify tag ↔ pom version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # 正则不含 build metadata（v1.2.3+build.5 拒绝）——9 语言模板同一约定，改需同步
+      - name: Tag format (v<semver>)
+        run: |
+          echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            || { echo "::error::tag 须形如 v1.2.3 或 v1.2.3-rc.1，实际: ${GITHUB_REF_NAME}"; exit 1; }
+      - name: Version consistency
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(mvn -B -ntp -q help:evaluate -Dexpression=project.version -DforceStdout)"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 与 pom.xml project.version ${MANIFEST_VERSION} 不一致（含 -SNAPSHOT 也算不一致）——先 release 版本再打 tag"
+            exit 1
+          fi
+          echo "OK: tag ${GITHUB_REF_NAME} ↔ pom ${MANIFEST_VERSION}"
+
   build:
     name: Build (sources + javadoc + jars)
+    needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

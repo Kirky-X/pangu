@@ -9,9 +9,35 @@ permissions:
   contents: write
 
 jobs:
+  # 前置校验两段式：tag 打错或版本不一致在这里失败，不进入构建与发布
+  verify:
+    name: Verify tag ↔ package.json version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      # 正则不含 build metadata（v1.2.3+build.5 拒绝）——9 语言模板同一约定，改需同步
+      - name: Tag format (v<semver>)
+        run: |
+          echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            || { echo "::error::tag 须形如 v1.2.3 或 v1.2.3-rc.1，实际: ${GITHUB_REF_NAME}"; exit 1; }
+      - name: Version consistency
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 与 package.json version ${MANIFEST_VERSION} 不一致——先 bump 版本再打 tag"
+            exit 1
+          fi
+          echo "OK: tag ${GITHUB_REF_NAME} ↔ package.json ${MANIFEST_VERSION}"
+
   build:
     name: Build + pack
+    needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -48,10 +74,15 @@ jobs:
           files: pkg/*.tgz
 
   # 仅当配置了 NPM_TOKEN 才发布到 npm；否则跳过，不报错。
+  # --provenance 生成签名的来源证明（SLSA，见 references/registry-secrets.md），需 id-token: write 权限。
+  # 注意：provenance 仅支持公开发布（--access public）；发布私有包时删掉 --provenance。
   publish-npm:
     name: Publish to npm (条件)
     needs: github-release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read   # publish 只需读源码；写权收紧（生命周期脚本在此 job 运行且持有 NPM_TOKEN）
+      id-token: write  # npm provenance 签名必需
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     if: ${{ env.NPM_TOKEN != '' }}
@@ -66,6 +97,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - run: pnpm publish --no-git-checks --access public
+      - run: pnpm publish --no-git-checks --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}

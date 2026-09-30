@@ -9,9 +9,39 @@ permissions:
   contents: write
 
 jobs:
+  # 前置校验两段式：tag 打错或版本不一致在这里失败，不进入构建与发布
+  verify:
+    name: Verify tag ↔ pyproject version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      # 正则不含 build metadata（v1.2.3+build.5 拒绝）——9 语言模板同一约定，改需同步
+      - name: Tag format (v<semver>)
+        run: |
+          echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            || { echo "::error::tag 须形如 v1.2.3 或 v1.2.3-rc.1，实际: ${GITHUB_REF_NAME}"; exit 1; }
+      - name: Version consistency
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if grep -q '^\[project\]' pyproject.toml && grep -q '^version' pyproject.toml; then
+            MANIFEST_VERSION="$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')"
+            if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+              echo "::error::tag ${GITHUB_REF_NAME} 与 pyproject.toml version ${MANIFEST_VERSION} 不一致——先 bump 版本再打 tag"
+              exit 1
+            fi
+            echo "OK: tag ${GITHUB_REF_NAME} ↔ pyproject ${MANIFEST_VERSION}"
+          else
+            echo "::notice::pyproject 无静态 [project].version（动态版本），跳过一致性检查"
+          fi
+
   build:
     name: Build sdist + wheel
+    needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4

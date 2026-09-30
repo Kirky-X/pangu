@@ -1,0 +1,29 @@
+# 可选 CHANGELOG 自动化：init 传 --changelog release-please 时生成（默认不生成）。
+# 工作方式：解析 Conventional Commits → 维持一个 Release PR（更新 CHANGELOG.md + 语言版本文件）
+# → 合并该 PR 自动打 tag → 触发 release.yml 发布。manifest 模式可管 monorepo 多包。
+#
+# 前提（质量不可控的自动化不如不用）:
+# 1. commit message 遵守 Conventional Commits 且【分类语义正确】——
+#    lefthook commit-msg 只校验格式不校验语义，语义不合规的仓库请先人工治理历史 commit
+# 2. release-type 按语言填写（rust/python/node/maven/go/simple/ruby…）：
+#    rust=Cargo.toml、python=pyproject.toml、node=package.json、java(maven)=pom.xml、
+#    go=simple（Go module 由 tag 即版本）、ruby=ruby、php=simple
+# 3. 多包 monorepo 参考 release-please manifest 模式（release-please-config.json + .release-please-manifest.json）
+name: Release Please
+
+on:
+  push:
+    branches: [__PANGU_BRANCH__]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # release-type: rust   # ← 按语言取消注释并填写（见上方第 2 条前提）

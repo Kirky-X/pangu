@@ -181,6 +181,46 @@ permissions:
 
 ---
 
+## 产物完整性与出处证明（可选加固）
+
+### checksums.txt（release.yml 已内置）
+
+rust / go / cpp / php 的 release 工作流在 GitHub Release 前自动生成 `checksums.txt`（sha256）。下载侧校验：
+
+```bash
+sha256sum --check --ignore-missing checksums.txt
+```
+
+（python/node/java/ruby/dotnet 的产物为 registry 原生格式，registry 自带完整性保证，不重复生成。）
+
+### npm provenance（node release.yml 已内置）
+
+`pnpm publish --provenance` 生成签名的来源证明（构建于 GitHub Actions 的可验证声明），需 `permissions: id-token: write`。仅支持公开发布（`--access public`）。
+
+### GitHub artifact attestation（可选，手动启用）
+
+为构建产物生成官方出处证明（SLSA 风格）。注意：slsa-framework/slsa-github-generator 已进入维护模式，官方推荐直接用 GitHub 原生 attestation（`actions/attest-build-provenance` + `gh attestation verify`）。在 release job 的 build 之后追加：
+
+```yaml
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+- name: Generate artifact attestation
+  uses: actions/attest-build-provenance@v2
+  with:
+    subject-path: |
+      dist/**
+```
+
+验证：`gh attestation verify <artifact> -R <owner>/<repo>`。
+
+### cosign 签名（可选，适合二进制分发型项目）
+
+借鉴 goreleaser 的「签 checksums 文件即可」实践：对 `checksums.txt` 做 keyless 签名，下载侧先 `cosign verify-blob` 再 `sha256sum --check`。rust/go/cpp 项目可自行启用，模板默认不内置（避免强制拉取 cosign 依赖）。
+
+---
+
 ## Secret 存在性判断的统一写法
 
 release job 开头把 secret 导出为 env，后续步骤用 `if: env.XXX != ''`：

@@ -5,9 +5,25 @@ on:
 permissions:
   contents: write
 jobs:
+  # 前置校验两段式：Go 无中心版本 manifest（版本经 ldflags 注入），这里校验 tag 规范
+  verify:
+    name: Verify tag format
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # 正则不含 build metadata（v1.2.3+build.5 拒绝）——9 语言模板同一约定，改需同步
+      - name: Tag format (v<semver>)
+        run: |
+          echo "${GITHUB_REF_NAME}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            || { echo "::error::tag 须形如 v1.2.3 或 v1.2.3-rc.1，实际: ${GITHUB_REF_NAME}"; exit 1; }
+
   build:
     name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [linux, darwin, windows]
@@ -44,6 +60,11 @@ jobs:
           path: dist
           pattern: bin-*
           merge-multiple: true
+      - name: Generate checksums.txt（下载侧可校验完整性；产物签名/出处证明见 references/registry-secrets.md）
+        run: |
+          cd dist
+          find . -type f ! -name 'checksums.txt' -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > checksums.txt
+          cat checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
