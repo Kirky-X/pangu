@@ -14,6 +14,8 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 LANGS="${1:-}"
 ROOT_NAME="${2:-}"
 [ -n "$LANGS" ] || die "用法: init-multi.sh <lang1,lang2,...> [项目根名]  例: init-multi.sh rust,python,node"

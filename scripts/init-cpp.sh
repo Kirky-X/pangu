@@ -9,6 +9,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="C/C++ (CMake)"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 
 PROJ_NAME="${1:-}"
 if [ -n "$PROJ_NAME" ]; then
@@ -17,6 +19,7 @@ fi
 # shellcheck disable=SC2034  # harness_finalize 读取
 PROJ_DIR="$(pwd)"
 
+# cpp 骨架是纯文件操作（无工具链依赖），templates-only 也照常生成，保持断言结构完整
 mkdir -p src include tests
 if [ ! -f src/main.cpp ]; then
   cat > src/main.cpp <<'CPP'

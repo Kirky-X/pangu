@@ -9,6 +9,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Java (Maven)"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd mvn
 
 # merge_pom_plugins <pom> <snippet>
@@ -90,7 +92,14 @@ ARTIFACT="${1:-app}"
 GROUP_ID="${JAVA_GROUP_ID:-com.example}"
 
 # 幂等保护：检测目标目录是否已有 pom.xml
-if [ -d "$ARTIFACT" ] && [ -f "$ARTIFACT/pom.xml" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 mvn archetype 脚手架（冒烟测试/存量目录叠加用）"
+  if [ -n "${1:-}" ]; then
+    mkdir -p "$ARTIFACT" && cd "$ARTIFACT"   # 目录创建原本由 archetype:generate 承担
+  fi
+  # 无位置参数时不建子目录，in-place 叠加（与其他 8 语言 templates-only 语义对齐）
+  PROJ_DIR="$(pwd)"
+elif [ -d "$ARTIFACT" ] && [ -f "$ARTIFACT/pom.xml" ]; then
   warn "检测到已有 Java 项目（$ARTIFACT/pom.xml），跳过脚手架（避免覆盖）"
   PROJ_DIR="$(cd "$ARTIFACT" && pwd)"
 else
@@ -102,8 +111,8 @@ else
     -DarchetypeVersion=1.5 \
     -DinteractiveMode=false >/dev/null
   PROJ_DIR="$(cd "$ARTIFACT" && pwd)"
+  log "Java 脚手架已生成 (mvn archetype:generate → $ARTIFACT)"
 fi
-log "Java 脚手架已生成 (mvn archetype:generate → $ARTIFACT)"
 
 copy_common
 copy_lang java

@@ -9,6 +9,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Python"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd uv
 
 PROJ_NAME="${1:-}"
@@ -19,7 +21,13 @@ case "$KIND" in
 esac
 
 # 幂等保护：检测目标目录是否已有 pyproject.toml
-if [ -n "$PROJ_NAME" ] && [ -f "$PROJ_NAME/pyproject.toml" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 uv 脚手架（冒烟测试/存量目录叠加用）"
+  if [ -n "$PROJ_NAME" ]; then
+    mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"   # 目录创建原本由 uv init 承担
+  fi
+  PROJ_DIR="$(pwd)"
+elif [ -n "$PROJ_NAME" ] && [ -f "$PROJ_NAME/pyproject.toml" ]; then
   warn "检测到已有 Python 项目（$PROJ_NAME/pyproject.toml），跳过脚手架（避免覆盖）"
   PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
 elif [ -z "$PROJ_NAME" ] && [ -f pyproject.toml ]; then
@@ -40,9 +48,11 @@ copy_common
 copy_lang python
 
 # 质量工具 dev 依赖（ruff/mypy/bandit/pip-audit/pytest-cov）
-log "添加质量工具 dev 依赖 (ruff mypy bandit pip-audit pytest pytest-cov)"
-cd "$PROJ_DIR"
-uv add --dev ruff mypy bandit pip-audit pytest pytest-cov || warn "uv add 失败，请手动: uv add --dev ruff mypy bandit pip-audit pytest pytest-cov"
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ]; then
+  log "添加质量工具 dev 依赖 (ruff mypy bandit pip-audit pytest pytest-cov)"
+  cd "$PROJ_DIR"
+  uv add --dev ruff mypy bandit pip-audit pytest pytest-cov || warn "uv add 失败，请手动: uv add --dev ruff mypy bandit pip-audit pytest pytest-cov"
+fi
 
 # 工具配置（ruff/mypy/bandit/pytest/coverage）在 pyproject-tooling.toml
 # → 合并进 uv 生成的 pyproject.toml，合并后删除该 snippet 文件

@@ -8,12 +8,16 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Node/TypeScript"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 # pnpm 首选 → npm 回退 → bun 可选。
 # 注意 bun 的 dev 标志是 --dev（-d），与 npm/pnpm 的 -D 不同（bun 无 -D；-d/--dev 才入 devDependencies），
 # 故用 PKG_DEV_FLAG 显式区分——确定性逻辑不交给隐式约定。
+# templates-only 模式无包管理器也能拷模板（PKG 留空，跳过 init/add）
 if command -v pnpm >/dev/null 2>&1; then PKG=pnpm; PKG_DEV_FLAG=-D
 elif command -v npm >/dev/null 2>&1; then PKG=npm; PKG_DEV_FLAG=-D
 elif command -v bun >/dev/null 2>&1; then PKG=bun; PKG_DEV_FLAG=--dev
+elif [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then PKG=""; PKG_DEV_FLAG=""
 else die "缺少 pnpm、npm 或 bun（请先安装 Node.js 与任一包管理器）"; fi
 
 PROJ_NAME="${1:-}"
@@ -23,7 +27,9 @@ fi
 PROJ_DIR="$(pwd)"
 
 # 幂等保护：检测目标目录是否已有 package.json
-if [ -f "$PROJ_DIR/package.json" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 $PKG 脚手架（冒烟测试/存量目录叠加用）"
+elif [ -f "$PROJ_DIR/package.json" ]; then
   warn "检测到已有 Node 项目（package.json），跳过脚手架（避免覆盖）"
 else
   $PKG init -y >/dev/null
@@ -34,14 +40,16 @@ copy_common
 copy_lang node
 
 # 质量工具 + TypeScript dev 依赖
-log "添加质量工具 dev 依赖 (typescript 工具链)"
-cd "$PROJ_DIR"
-# flat config 推荐组合: typescript-eslint(unified) + @eslint/js
-$PKG add "$PKG_DEV_FLAG" typescript @types/node \
-  prettier eslint @eslint/js typescript-eslint \
-  eslint-plugin-security \
-  vitest @vitest/coverage-v8 \
-  || warn "$PKG add $PKG_DEV_FLAG 失败，请手动安装上述 dev 依赖"
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ]; then
+  log "添加质量工具 dev 依赖 (typescript 工具链)"
+  cd "$PROJ_DIR"
+  # flat config 推荐组合: typescript-eslint(unified) + @eslint/js
+  $PKG add "$PKG_DEV_FLAG" typescript @types/node \
+    prettier eslint @eslint/js typescript-eslint \
+    eslint-plugin-security \
+    vitest @vitest/coverage-v8 \
+    || warn "$PKG add $PKG_DEV_FLAG 失败，请手动安装上述 dev 依赖"
+fi
 
 # 落地配置文件（snippet → 真实文件名，绕过 config-protection 模板保护）
 if [ -f eslint-flat.snippet.js ] && [ ! -f eslint.config.js ]; then

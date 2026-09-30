@@ -8,6 +8,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME=".NET"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd dotnet
 
 PROJ_NAME="${1:-}"
@@ -26,25 +28,31 @@ PROJ_DIR="$(pwd)"
 _name="${PROJ_NAME:-$(basename "$PROJ_DIR")}"
 
 # 幂等保护：检测目标目录是否已有 .csproj
-if ls "$PROJ_DIR"/*.csproj >/dev/null 2>&1; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 dotnet new 脚手架（冒烟测试/存量目录叠加用）"
+elif ls "$PROJ_DIR"/*.csproj >/dev/null 2>&1; then
   warn "检测到已有 .NET 项目（*.csproj），跳过脚手架（避免覆盖）"
 else
   dotnet new "$KIND" -n "$_name" -o . >/dev/null 2>&1 \
     || dotnet new "$KIND" >/dev/null 2>&1 \
     || die "dotnet new $KIND 失败"
 fi
-log ".NET 脚手架已生成 (dotnet new $KIND)"
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ]; then
+  log ".NET 脚手架已生成 (dotnet new $KIND)"
+fi
 
 copy_common
 copy_lang dotnet
 
 # 质量工具：SecurityCodeScan + coverlet 覆盖率
-cd "$PROJ_DIR"
-log "添加质量工具 (SecurityCodeScan coverlet)"
-dotnet add package SecurityCodeScan.VS2019 \
-  || warn "dotnet add package SecurityCodeScan 失败，请手动添加"
-dotnet add package coverlet.collector \
-  || warn "dotnet add package coverlet.collector 失败，请手动添加"
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ]; then
+  cd "$PROJ_DIR"
+  log "添加质量工具 (SecurityCodeScan coverlet)"
+  dotnet add package SecurityCodeScan.VS2019 \
+    || warn "dotnet add package SecurityCodeScan 失败，请手动添加"
+  dotnet add package coverlet.collector \
+    || warn "dotnet add package coverlet.collector 失败，请手动添加"
+fi
 
 git_init
 install_hooks

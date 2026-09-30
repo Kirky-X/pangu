@@ -8,10 +8,18 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Ruby"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd bundle
 
 PROJ_NAME="${1:-}"
-if [ -n "$PROJ_NAME" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  if [ -n "$PROJ_NAME" ]; then
+    mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"   # 目录创建原本由 bundle gem 承担
+  fi
+  PROJ_DIR="$(pwd)"
+  warn "templates-only：跳过 bundle 脚手架（冒烟测试/存量目录叠加用）"
+elif [ -n "$PROJ_NAME" ]; then
   # 幂等保护：检测目标目录是否已有 gemspec 或 Gemfile
   if [ -d "$PROJ_NAME" ] && { ls "$PROJ_NAME"/*.gemspec >/dev/null 2>&1 || [ -f "$PROJ_NAME/Gemfile" ]; }; then
     warn "检测到已有 Ruby 项目（$PROJ_NAME），跳过脚手架（避免覆盖）"
@@ -40,7 +48,7 @@ copy_lang ruby
 # 通用质量 gem（rubocop/rspec/simplecov/bundler-audit）。
 # brakeman 仅 Rails 项目用，非 Rails 不加。
 cd "$PROJ_DIR"
-if [ -f Gemfile ]; then
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ] && [ -f Gemfile ]; then
   log "添加质量 gem (rspec rubocop simplecov bundler-audit)"
   bundle add rspec rubocop rubocop-rspec simplecov bundler-audit --group development \
     || warn "bundle add 失败，请手动: bundle add rspec rubocop simplecov bundler-audit --group development"

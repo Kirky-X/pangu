@@ -9,6 +9,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Go"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd go
 
 PROJ_NAME="${1:-}"
@@ -18,7 +20,9 @@ fi
 PROJ_DIR="$(pwd)"
 
 # 幂等保护：检测目标目录是否已有 go.mod
-if [ -f "$PROJ_DIR/go.mod" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 go mod init（冒烟测试/存量目录叠加用）"
+elif [ -f "$PROJ_DIR/go.mod" ]; then
   warn "检测到已有 Go 项目（go.mod），跳过脚手架（避免覆盖）"
 else
   MODULE="${GO_MODULE:-github.com/$(whoami)/$(basename "$PROJ_DIR")}"

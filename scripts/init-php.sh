@@ -8,6 +8,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="PHP"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd composer
 
 PROJ_NAME="${1:-}"
@@ -17,7 +19,9 @@ fi
 PROJ_DIR="$(pwd)"
 
 # 幂等保护：检测目标目录是否已有 composer.json
-if [ -f "$PROJ_DIR/composer.json" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 composer init（冒烟测试/存量目录叠加用）"
+elif [ -f "$PROJ_DIR/composer.json" ]; then
   warn "检测到已有 PHP 项目（composer.json），跳过脚手架（避免覆盖）"
 else
   # 非交互式初始化：默认应用类型，MIT，PSR-4 autoload（包名小写）
@@ -34,10 +38,12 @@ copy_common
 copy_lang php
 
 # 质量工具 dev 依赖：php-cs-fixer / psalm(security) / phpunit
-cd "$PROJ_DIR"
-log "添加质量工具 dev 依赖 (php-cs-fixer psalm phpunit)"
-composer require --dev friendsofphp/php-cs-fixer vimeo/psalm squizlabs/php_codesniffer phpunit/phpunit \
-  || warn "composer require --dev 失败，请手动安装 php-cs-fixer/psalm/phpunit"
+if [ "$PANGU_TEMPLATES_ONLY" != "1" ]; then
+  cd "$PROJ_DIR"
+  log "添加质量工具 dev 依赖 (php-cs-fixer psalm phpunit)"
+  composer require --dev friendsofphp/php-cs-fixer vimeo/psalm squizlabs/php_codesniffer phpunit/phpunit \
+    || warn "composer require --dev 失败，请手动安装 php-cs-fixer/psalm/phpunit"
+fi
 log "psalm 安全检查: CI 用 --taint-analysis 命令行触发（见 php/ci.yml security job），无需改 psalm.xml"
 
 git_init

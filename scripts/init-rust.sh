@@ -3,11 +3,14 @@
 # 用法:
 #   init-rust.sh            # 在当前空目录初始化（项目名取目录名）
 #   init-rust.sh <name>     # 新建子目录 <name> 并在其中初始化
+#   init-rust.sh <name> lib --profile core   # 第二参数 bin|lib；harness 旗标见 _common.sh parse_harness_args
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
 # shellcheck disable=SC2034  # harness_finalize 读取
 LANG_NAME="Rust"
+parse_harness_args "$@"
+set -- ${PANGU_POSITIONAL[@]+"${PANGU_POSITIONAL[@]}"}
 require_cmd cargo
 
 PROJ_NAME="${1:-}"
@@ -18,7 +21,13 @@ case "$PROJ_KIND" in
 esac
 
 # 幂等保护：检测目标目录是否已有 Cargo.toml
-if [ -n "$PROJ_NAME" ] && [ -f "$PROJ_NAME/Cargo.toml" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  warn "templates-only：跳过 cargo 脚手架（冒烟测试/存量目录叠加用）"
+  if [ -n "$PROJ_NAME" ]; then
+    mkdir -p "$PROJ_NAME" && cd "$PROJ_NAME"   # 目录创建原本由 cargo init 承担
+  fi
+  PROJ_DIR="$(pwd)"
+elif [ -n "$PROJ_NAME" ] && [ -f "$PROJ_NAME/Cargo.toml" ]; then
   warn "检测到已有 Rust 项目（$PROJ_NAME/Cargo.toml），跳过脚手架（避免覆盖）"
   PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
 elif [ -z "$PROJ_NAME" ] && [ -f Cargo.toml ]; then
@@ -42,7 +51,9 @@ copy_lang rust
 # 追加 release profile 优化配置（LTO/codegen-units=1/strip/panic）到 Cargo.toml
 # cargo init 默认 Cargo.toml 不含 [profile.release]，社区 release 标配需手动加
 # 注意：library 项目建议删 panic = "abort"（依赖该 library 的 binary 将无法 catch panic 续跑）
-if [ -f "$PROJ_DIR/cargo-profile.snippet.toml" ] && [ -f "$PROJ_DIR/Cargo.toml" ]; then
+if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
+  rm -f "$PROJ_DIR/cargo-profile.snippet.toml"   # 无脚手架即无 Cargo.toml，snippet 无从追加（finalize 统一清理兜底）
+elif [ -f "$PROJ_DIR/cargo-profile.snippet.toml" ] && [ -f "$PROJ_DIR/Cargo.toml" ]; then
   if grep -q '\[profile.release\]' "$PROJ_DIR/Cargo.toml"; then
     warn "Cargo.toml 已含 [profile.release]，跳过追加（请手动核对优化标志）"
   else
