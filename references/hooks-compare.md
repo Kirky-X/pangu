@@ -100,7 +100,7 @@ prek update
 | 大文件/合并冲突标记      | `check-added-large-files`、`check-merge-conflict`                                                                  | pre-commit 生态现成 hook                               |
 | 拼写                     | `typos`（crate）                                                                                                   | 跨语言通用                                             |
 | 提交信息                 | conventional commits 校验（`commitizen`/`lefthook commit-msg`）                                                    | 只校验格式，不校验分类语义                             |
-| 覆盖率 + diff 覆盖率     | lefthook `pre-push`（全局 + `uvx diff-cover`）；pre-commit framework 无 push 阶段，由 CI 兜底                       | 见 `references/coverage-standards.md`                  |
+| 覆盖率 + diff 覆盖率     | lefthook `pre-push`（全局 + `uvx diff-cover`）；pre-commit framework 无 push 阶段，由 CI 兜底                       | 见 [coverage-standards.md](coverage-standards.md)                  |
 
 > pre-push 慢检查（覆盖率门禁、依赖审计）两套配置等价提供：lefthook 有原生 `pre-push` 阶段；pre-commit framework 无 push 钩子，同一组检查由 CI 兜底（或手动 `pre-commit run --hook-stage manual`）。
 >

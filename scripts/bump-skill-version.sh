@@ -29,6 +29,7 @@ usage() {
   - skill.json / package.json / .claude-plugin/plugin.json / .codex-plugin/plugin.json / gemini-extension.json
     （顶层 version 字段；无 version 字段则 warn 跳过）
   - .claude-plugin/marketplace.json （plugins[].version 遍历；无 version 字段的 plugin 跳过）
+  - SKILL.md frontmatter 中的 version 字段（仅替换第一处；缺失则 warn 跳过）
   - README.md 中形如 version-<x.y.z>-<color> 的 shields.io badge
 EOF
 }
@@ -184,9 +185,42 @@ def update_readme_badge(rel):
                 f.write(new_content)
         badge_count += n
 
+def update_skillmd_frontmatter(rel):
+    global updated, skipped
+    full = os.path.join(PROJ_DIR, rel)
+    if not os.path.isfile(full):
+        return
+    with open(full) as f:
+        content = f.read()
+    m = re.match(r'\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)', content, re.S)
+    if not m:
+        pwarn(f'{rel}: 无 frontmatter，跳过')
+        skipped += 1
+        return
+    block = m.group(1)
+    old_m = re.search(
+        r'(?m)^[ \t]*version:[ \t]*["\']?([0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?)["\']?[ \t]*$', block)
+    if not old_m:
+        pwarn(f'{rel}: frontmatter 无 version 字段，跳过')
+        skipped += 1
+        return
+    old = old_m.group(1)
+    if old == VERSION:
+        plog(f'{rel}: frontmatter version 已是 {VERSION}，无变化')
+        skipped += 1
+        return
+    action = '将更新' if CHECK else '更新'
+    plog(f'{action}: {rel} frontmatter version ({old} → {VERSION})')
+    if not CHECK:
+        new_block = block[:old_m.start()] + f'version: "{VERSION}"' + block[old_m.end():]
+        with open(full, 'w') as f:
+            f.write(content[:m.start(1)] + new_block + content[m.end(1):])
+    updated += 1
+
 for m in TOP_LEVEL_MANIFESTS:
     update_top_level(m)
 update_marketplace(MARKETPLACE)
+update_skillmd_frontmatter('SKILL.md')
 update_readme_badge('README.md')
 
 summary = f'summary: 更新 {updated} 个文件，跳过 {skipped} 个，badge {badge_count} 处'

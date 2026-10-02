@@ -54,7 +54,7 @@ FFI 脚本**半自动**：官方工具管骨架（maturin 非交互可参数化�
 5. **pre-push 合并**：基底 pre-push 是主语言的覆盖率门禁（全局+diff）。次语言片段的 pre-push 命令**改名追加**（如 `coverage-python`），与主语言门禁并存——各语言各自跑各自的覆盖率，互不替代。
 6. 删除 `{lang}-.pre-commit-config.yaml` / `{lang}-lefthook.yml` 片段文件。
 
-> 替代方案：hook 管理器用 [prek](https://github.com/j178/prek)（drop-in 兼容 `.pre-commit-config.yaml`），其内置 monorepo workspace 模式可各子目录独立配置、一条命令全量跑，免去手动合并。见 `references/hooks-compare.md`。
+> 替代方案：hook 管理器用 [prek](https://github.com/j178/prek)（drop-in 兼容 `.pre-commit-config.yaml`），其内置 monorepo workspace 模式可各子目录独立配置、一条命令全量跑，免去手动合并。见 [hooks-compare.md](hooks-compare.md)。
 
 ### 每语言专属 hook 清单（合并时追加这些，去重私钥/commit-msg）
 

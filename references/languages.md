@@ -2,7 +2,7 @@
 
 每种语言给出：脚手架、格式、Lint、类型、安全、测试+覆盖率、**本地复现 CI** 命令、发布命令。CI 模板（`templates/<lang>/ci.yml`）与本地命令等价。
 
-> 覆盖率阈值由 init 的 `--cov <N>` / `--profile core|tool` 渲染（默认 80）；下文命令以默认值 80 示例，实际以生成项目里的渲染值为准。diff coverage 详见 `references/coverage-standards.md`。
+> 覆盖率阈值由 init 的 `--cov <N>` / `--profile core|tool` 渲染（默认 80）；下文命令以默认值 80 示例，实际以生成项目里的渲染值为准。diff coverage 详见 [coverage-standards.md](coverage-standards.md)。
 
 ---
 
@@ -127,7 +127,7 @@ cov=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}') && \
 awk -v c="${cov%\%}" 'BEGIN{exit !(c+0 < 80)}' && { echo "coverage $cov < 80%"; exit 1; }
 ```
 
-> Go 的 diff coverage 需 gocov 转换（diff-cover 不支持原生格式），升级路径见 `references/coverage-standards.md`。
+> Go 的 diff coverage 需 gocov 转换（diff-cover 不支持原生格式），升级路径见 [coverage-standards.md](coverage-standards.md)。
 
 ---
 
@@ -179,7 +179,7 @@ bundle exec rspec && \
 ruby -rjson -e 'pct = JSON.parse(File.read("coverage/.last_run.json")).dig("result","covered_percent") || 0; exit(pct.to_f >= 80 ? 0 : 1)'
 ```
 
-> Ruby 的 diff coverage 需 simplecov-cobertura（diff-cover 不支持 simplecov 默认输出），升级路径见 `references/coverage-standards.md`。
+> Ruby 的 diff coverage 需 simplecov-cobertura（diff-cover 不支持 simplecov 默认输出），升级路径见 [coverage-standards.md](coverage-standards.md)。
 
 ---
 

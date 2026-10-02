@@ -3,7 +3,7 @@ name: pangu
 description: "工业级项目 harness 初始化（脚手架+CI+Release+hooks+覆盖率门禁）。触发：初始化项目/新建项目/CI 配置/pre-commit/release/脚手架/cargo init/go mod init/dotnet new/覆盖率门禁/安全审计"
 license: MIT
 metadata:
-  version: "0.1.5"
+  version: "0.1.6"
   author: "Kirky-X"
   repo: "https://github.com/Kirky-X/pangu"
   tags: "project-init, scaffold, ci-cd, pre-commit, lefthook, release, coverage-gate, harness, multi-language"
@@ -204,6 +204,7 @@ bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 | ---------------------------------- | ------------------------------------------------------------------ | -------------- |
 | 9 语言工具链速查（含本地复现命令） | `references/languages.md`                                          | 阶段 1/6       |
 | 行业覆盖率门禁标准（含 diff coverage 落地矩阵） | `references/coverage-standards.md`                                 | 配置覆盖率阈值 |
+| 生成项目编译优化配置（高 ROI 默认落地项） | `references/build-optimization.md`                                 | 改编译优化模板 |
 | pre-commit vs lefthook vs prek 选型 | `references/hooks-compare.md`                                      | 阶段 2         |
 | 各 registry secret + 产物完整性加固 | `references/registry-secrets.md`                                   | 阶段 4         |
 | 公共函数库（被各 init source）     | `scripts/_common.sh`                                               | 改脚本前必读   |
