@@ -212,7 +212,10 @@ def update_skillmd_frontmatter(rel):
     action = '将更新' if CHECK else '更新'
     plog(f'{action}: {rel} frontmatter version ({old} → {VERSION})')
     if not CHECK:
-        new_block = block[:old_m.start()] + f'version: "{VERSION}"' + block[old_m.end():]
+        # 保留原行缩进（metadata.version 是缩进行；丢失缩进会破坏 YAML block mapping）
+        raw = old_m.group(0)
+        indent = raw[:len(raw) - len(raw.lstrip())]
+        new_block = block[:old_m.start()] + f'{indent}version: "{VERSION}"' + block[old_m.end():]
         with open(full, 'w') as f:
             f.write(content[:m.start(1)] + new_block + content[m.end(1):])
     updated += 1
