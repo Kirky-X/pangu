@@ -245,7 +245,8 @@ render_placeholders() {
 # 但可追溯由哪个 pangu 版本/参数生成，模板演进后对照 repo 对应 tag 手动 diff。
 write_pangu_meta() {
   local pangu_version
-  pangu_version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SKILL_DIR/skill.json" 2>/dev/null | head -1)"
+  # skill.json 缺失是合法状态（fake root/模板-only 场景）；set -e 下 sed 的退出码 2 会静默杀死 init，须连同退出码一起吞
+  pangu_version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SKILL_DIR/skill.json" 2>/dev/null | head -1 || true)"
   pangu_version="${pangu_version:-unknown}"
   {
     printf '# pangu harness 元数据（生成来源记录）。生成物归本项目所有，pangu 不会自动覆盖。\n'
