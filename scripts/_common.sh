@@ -44,7 +44,9 @@ parse_harness_args() {
         [ $# -ge 2 ] || die "--cov 需要数值参数（如 --cov 85）"
         case "$2" in ""|*[!0-9]*) die "--cov 须为正整数: $2" ;; esac
         # 上限 99：java 模板用 0.__PANGU_COV__ 渲染小数（0.100 会被解析为 10%）
-        [ "$2" -ge 10 ] && [ "$2" -le 99 ] || die "--cov 须在 10-99 之间（java pom 按 0.N 渲染小数比例）: $2"
+        if [ "$2" -lt 10 ] || [ "$2" -gt 99 ]; then
+          die "--cov 须在 10-99 之间（java pom 按 0.N 渲染小数比例）: $2"
+        fi
         PANGU_COV="$2"; PANGU_PROFILE="custom"; shift 2 ;;
       --profile)
         [ $# -ge 2 ] || die "--profile 需要 core 或 tool"
