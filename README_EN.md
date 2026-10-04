@@ -16,15 +16,15 @@ English | [中文](README.md)
 - **Parameterized thresholds**: init supports `--cov <N>` / `--profile core|tool` (core logic 85 / utility 70) / `--branch` / `--no-release` / `--no-codeql` / `--changelog release-please`; thresholds and branch render into CI/lefthook/tool-config in one pass, consistent by construction.
 - **Two-stage release**: a `verify` job runs first on `v*` tags (tag format + tag↔version-manifest consistency); a wrong tag never reaches the build. rust/go/cpp/php artifacts ship with checksums.txt, npm publish uses provenance (attestation/cosign hardening in registry-secrets).
 - **Traceable provenance**: init writes `.pangu-meta.yml` (pangu version/params/harness file list) so template upgrades can be diffed against the matching tag; `doctor.sh` health-checks generated projects.
-- **Coverage gates are real**: threshold checks hard-fail, never neutralized by `|| true`; uploads go through the official `codecov-action@v4`; cpp gets a 3-OS build matrix plus a dedicated coverage job; cpp/php/dotnet CI gained dependency caching.
+- **Coverage gates are real**: threshold checks hard-fail, never neutralized by `|| true`; uploads go through the official `codecov-action@v4`; cpp gets a 3-OS build matrix plus a dedicated coverage job; php/dotnet CI gained dependency caching (the cpp template has none).
 - **SHA-pinned own CI**: pangu's own workflows reference all third-party actions by commit SHA.
 - **Dependency guardrails**: Dependabot + CodeQL (trimmable via `--no-codeql`) + per-language SCA.
 
 ## 📦 Installation
 
 ```bash
-# Option 1: deploy from this workspace (to ~/.zcode/skills and ~/.claude/skills)
-bash scripts/sync-skills.sh pangu
+# Option 1: install into a project's agent directory (install-skill.sh has 7 subcommands, 9 agents supported)
+bash scripts/install-skill.sh install pangu --target /path/to/project --agent claude
 
 # Option 2: manual copy into the ZCode skills directory
 cp -r /path/to/pangu ~/.zcode/skills/pangu
@@ -62,11 +62,14 @@ flowchart LR
 
 ## ✅ Tests & Verification
 
-Verified 2026-10-01 (v0.1.6, unreleased workspace version):
+Verified 2026-10-04 (v0.1.6, unreleased workspace version):
 
-- **Self-check gate**: `bash scripts/selfcheck.sh` passes in full — shellcheck on 22 scripts with 0 errors, YAML lint on 42 template files, template integrity for all 9+1 language dirs, SKILL.md index validation (70 referenced paths, fail-closed), and the init smoke suite.
+- **Self-check gate**: `bash scripts/selfcheck.sh` passes in full — shellcheck on 22 scripts with 0 errors, YAML lint on 42 template files, template integrity for the 9 language dirs (the skill/common inventories live in the repo's own CI integrity job), SKILL.md index validation (72 referenced paths, fail-closed), and the init smoke suite.
 - **Init smoke suite** (`scripts/smoke-test.sh`, templates-only end-to-end): 9 languages × default params (required files present / zero placeholder residue / YAML parseable / git initialized / lefthook equivalence baseline / no snippet leftovers) + parameterization assertions (`--cov 90 --branch trunk --no-release --no-codeql` renders and trims correctly) — all green.
 - **doctor verified**: `scripts/doctor.sh` passes against a fresh smoke project (files/YAML/hooks/gates/provenance).
+- **pytest regression suite**: `python3 -m pytest tests/ -q` — all 122 tests pass (per-language init / multi-language / FFI / skill repos / align / bump / install-skill / selfcheck behavior).
+- **Multi-language prefix & lint**: `bash scripts/test-multi.sh` ALL GREEN (copy_lang prefix); `python3 scripts/skill_lint.py .` reports 0 fail / 0 warn.
+- **Eval assets**: `evals/evals.json` with 3 evals + `test-prompts.json` with 5 trigger prompts; `hooks/pre-push` is this repo's own cleanup hook (git gc + cargo clean before push).
 - pangu's own CI (`.github/workflows/ci.yml`) pins every action by commit SHA, with lint / integrity / smoke jobs.
 
 ## 📁 Directory Structure
@@ -75,18 +78,23 @@ Verified 2026-10-01 (v0.1.6, unreleased workspace version):
 pangu/
 ├── SKILL.md            # Route table + 5-stage flow + failure handling
 ├── skill.json
+├── test-prompts.json   # 5 trigger-test prompts
 ├── scripts/            # 22 scripts
 │   ├── init-{rust,python,node,java,go,cpp,ruby,php,dotnet}.sh
 │   ├── init-multi.sh / init-rust-pyo3.sh / init-rust-napi.sh
 │   ├── init-skill.sh / align-skill.sh / bump-skill-version.sh
 │   ├── install-hooks.sh / _common.sh / selfcheck.sh
-│   ├── smoke-test.sh / doctor.sh
-│   └── install-skill.sh
+│   ├── smoke-test.sh / doctor.sh / test-multi.sh
+│   ├── install-skill.sh / skill_lint.py
+│   └── kb/tests/           # 6 focused regression scripts
 ├── templates/          # 11 template dirs
 │   ├── common/             # dependabot / codeql / issue-pr templates / CODEOWNERS / release-please(opt-in)
 │   ├── {rust,…,dotnet}/    # per-language CI(global+diff coverage) / release(verify two-stage) / hook configs
 │   └── skill/              # skill-repo templates (9 .template files)
-└── references/         # 7 references (languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization)
+├── references/         # 7 references (languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization)
+├── hooks/              # repo-own pre-push cleanup (git gc + cargo clean)
+├── tests/              # pytest suite (122 tests)
+└── evals/              # evals.json (3 evals)
 ```
 
 ## 🔮 Boundaries

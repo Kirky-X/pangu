@@ -43,7 +43,7 @@ uvx diff-cover lcov.info --fail-under 80 --compare-branch "origin/main"
 | 类型        | `mypy src/`（或 `pyright`）                                                        |
 | 安全        | `bandit -r src/ -ll`；`pip-audit`                                                  |
 | 测试+覆盖率 | `pytest --cov=src --cov-report=term --cov-fail-under=80`                           |
-| 发布        | `uv build` → `uv publish`（需 `UV_PUBLISH_TOKEN` 或 `PYPI_TOKEN`）                 |
+| 发布        | `uv build` → `uv publish`（需 `UV_PUBLISH_TOKEN`）                                 |
 
 **本地复现 CI**
 
@@ -90,7 +90,7 @@ uvx diff-cover coverage/lcov.info --fail-under 80 --compare-branch "origin/main"
 | 静态分析    | `mvn spotbugs:check`（含 FindSecBugs 插件）                                                                      |
 | 安全        | `mvn org.owasp:dependency-check-maven:check`                                                                     |
 | 测试+覆盖率 | `mvn test jacoco:report`（`jacoco` 配 `--fail-under-line 80`）                                                   |
-| 发布        | `mvn deploy`（Maven Central，需 GPG + MAVEN_CENTRAL_TOKEN）                                                         |
+| 发布        | `mvn deploy`（CI 默认发 GitHub Packages；发 Maven Central 需按 registry-secrets.md 手动配 GPG + Sonatype 凭证）    |
 
 Gradle 备选：`./gradlew spotlessCheck check jacocoTestCoverageVerification sonarqube`。
 
@@ -167,7 +167,7 @@ uvx diff-cover coverage.xml --fail-under 80 --compare-branch "origin/main"
 | 安全（Rails） | `brakeman`（Rails 项目）；非 Rails 跳过                                              |
 | 安全 SCA      | `bundle audit check --update`                                                        |
 | 测试+覆盖率   | `bundle exec rspec`（simplecov 在 spec_helper 注入，`SimpleCov.start` + 覆盖率门禁） |
-| 发布          | `rake release`（RubyGems，需 `RUBYGEMS_AUTH_TOKEN`）                                 |
+| 发布          | `rake release`（RubyGems；CI 模板经 `gem push` 发布，需仓库 secret `RUBYGEMS_API_KEY`） |
 
 **本地复现 CI**
 

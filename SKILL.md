@@ -34,7 +34,7 @@ flowchart TD
    - **fast 核心**（格式 / lint / license-deny）→ pre-commit + lefthook + CI 三处一致，每次提交即跑
    - **fast 辅助**（私钥扫描 / 拼写 / 大文件 / 尾随空格）→ pre-commit 最全；lefthook 镜私钥扫描（9 语言全部）；CI 不重复（本地拦截优先，CI 专注核心 + slow）
    - **slow**（覆盖率全局+diff 双门禁 / 安全审计）→ lefthook `pre-push`（9 语言全部）+ CI，阈值一致；pre-commit framework 无 push 钩子，由 CI 兜底。等价性由 `scripts/selfcheck.sh` 冒烟断言守护
-3. **条件发布** — Release 工作流默认产出 GitHub Release 产物；**仅当对应 secret 存在**时才推 registry（crates.io / PyPI / npm / Maven Central / RubyGems / Packagist / NuGet）。无 secret 不报错，只跳过。tag 打错/版本不一致在首个 `verify` job 失败，不进入构建发布（两段式）。
+3. **条件发布** — Release 工作流默认产出 GitHub Release 产物；**仅当对应 secret 存在**时才推 registry（crates.io / PyPI / npm / RubyGems / NuGet）；java 默认发 GitHub Packages（自动 `GITHUB_TOKEN`，无需配置）；Packagist 无 API，git tag webhook 自动同步。无 secret 不报错，只跳过。tag 打错/版本不一致在首个 `verify` job 失败，不进入构建发布（两段式）。
 4. **覆盖率行业底线 80%** — 核心业务逻辑 85%+（`--profile core`），工具类 70%+（`--profile tool`），或 `--cov <N>` 自定。阈值渲染进 CI/lefthook/工具配置三处（`__PANGU_COV__` 占位符）。**diff coverage 双门禁**：全局覆盖率之外，对相对基线分支的新增/修改行同样设阈值（Go/Ruby 暂仅全局，升级路径见 `references/coverage-standards.md`）。
 5. **不臆测未读脚本** — 调用 `scripts/init-{L}.sh` 前先 Read 它，确认行为与用户需求一致；不盲目 `bash` 未知脚本。
 
@@ -44,13 +44,13 @@ flowchart TD
 
 | 语言        | init 脚本        | 包管理/构建          | CI 模板         | Release 模板         | 安全工具                                   | 覆盖率工具                 | 发布 registry（条件）                 |
 | ----------- | ---------------- | -------------------- | --------------- | -------------------- | ------------------------------------------ | -------------------------- | ------------------------------------- |
-| **Rust**    | `init-rust.sh`   | cargo                | `rust/ci.yml`   | `rust/release.yml`   | cargo-audit + cargo-deny + Miri            | cargo-llvm-cov / tarpaulin | crates.io（CARGO_REGISTRY_TOKEN）     |
-| **Python**  | `init-python.sh` | uv（首选）/pip       | `python/ci.yml` | `python/release.yml` | bandit + pip-audit + ruff                  | pytest-cov                 | PyPI（PYPI_TOKEN / UV_PUBLISH_TOKEN） |
-| **Node/TS** | `init-node.sh`   | pnpm（首选）/npm     | `node/ci.yml`   | `node/release.yml`   | eslint-plugin-security + npm audit         | vitest-cov / c8            | npm（NPM_TOKEN）                      |
-| **Java**    | `init-java.sh`   | Maven（默认）/Gradle | `java/ci.yml`   | `java/release.yml`   | SpotBugs+FindSecBugs + OWASP Dep-Check     | JaCoCo                     | Maven Central（MAVEN_CENTRAL_TOKEN）      |
-| **Go**      | `init-go.sh`     | go modules           | `go/ci.yml`     | `go/release.yml`     | gosec + govulncheck                        | go test -cover + covdata   | GitHub Release（Go 无中心 registry）  |
-| **C/C++**   | `init-cpp.sh`    | CMake + Ninja        | `cpp/ci.yml`    | `cpp/release.yml`    | cppcheck + flawfinder + clang-tidy         | gcov + lcov / gcovr        | GitHub Release                        |
-| **Ruby**    | `init-ruby.sh`   | bundler              | `ruby/ci.yml`   | `ruby/release.yml`   | brakeman + bundler-audit                   | simplecov                  | RubyGems（RUBYGEMS_AUTH_TOKEN）       |
+| **Rust**    | `init-rust.sh`   | cargo                | `rust/ci.yml`   | `rust/release.yml`   | cargo-audit + cargo-deny（Miri 手动 nightly） | cargo-llvm-cov / tarpaulin | crates.io（CARGO_REGISTRY_TOKEN）     |
+| **Python**  | `init-python.sh` | uv（首选）/pip       | `python/ci.yml` | `python/release.yml` | bandit + pip-audit + ruff                  | pytest-cov                 | PyPI（UV_PUBLISH_TOKEN）              |
+| **Node/TS** | `init-node.sh`   | pnpm（首选）/npm     | `node/ci.yml`   | `node/release.yml`   | eslint-plugin-security + pnpm audit        | vitest-cov / c8            | npm（NPM_TOKEN）                      |
+| **Java**    | `init-java.sh`   | Maven（默认）/Gradle | `java/ci.yml`   | `java/release.yml`   | SpotBugs+FindSecBugs + OWASP Dep-Check     | JaCoCo                     | GitHub Packages（自动 GITHUB_TOKEN）  |
+| **Go**      | `init-go.sh`     | go modules           | `go/ci.yml`     | `go/release.yml`     | gosec + govulncheck                        | go tool cover -func（阈值比对） | GitHub Release（Go 无中心 registry） |
+| **C/C++**   | `init-cpp.sh`    | CMake + Ninja        | `cpp/ci.yml`    | `cpp/release.yml`    | cppcheck + flawfinder + clang-tidy（pre-commit） | gcovr（gcov 后端）    | GitHub Release                        |
+| **Ruby**    | `init-ruby.sh`   | bundler              | `ruby/ci.yml`   | `ruby/release.yml`   | brakeman + bundler-audit                   | simplecov                  | RubyGems（RUBYGEMS_API_KEY）          |
 | **PHP**     | `init-php.sh`    | composer             | `php/ci.yml`    | `php/release.yml`    | psalm(security) + composer-audit           | phpunit --coverage         | Packagist（无 API，git tag 触发）     |
 | **.NET**    | `init-dotnet.sh` | dotnet CLI           | `dotnet/ci.yml` | `dotnet/release.yml` | SecurityCodeScan + dotnet format analyzers | coverlet + reportgenerator | NuGet（NUGET_API_KEY）                |
 
@@ -143,21 +143,21 @@ bash "$SKILL/scripts/init-rust.sh" my-project --profile core # 核心业务阈�
 bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 ```
 
-脚本自包含：语言原生脚手架 + 拷贝 harness 模板（`templates/common/` + `templates/{L}/`）+ 渲染占位符（阈值/分支）+ 写 `.pangu-meta.yml` 生成来源记录 + git init + 装本地 hooks（pre-commit framework + lefthook 双产出，择一启用，详见 `references/hooks-compare.md`）。多语言混合项目走专属脚本（见上方「混合项目路由」），脚本内部 4 步流程详见各 `init-{L}.sh` 头部注释。
+脚本自包含：语言原生脚手架 + 拷贝 harness 模板（`templates/common/` + `templates/{L}/`）+ 渲染占位符（阈值/分支）+ 写 `.pangu-meta.yml` 生成来源记录 + git init + 装本地 hooks（pre-commit framework + lefthook 双产出，择一启用，详见 `references/hooks-compare.md`）。多语言混合项目走专属脚本（见上方「混合项目路由」），用法与前置步骤见各脚本头部注释。
 
 ### 阶段 2 · GitHub CI 质量门禁
 
-`.github/workflows/ci.yml` 在每个 PR/push 时跑等价本地 hook + 覆盖率双门禁：`checkout(fetch-depth:0) → toolchain → 依赖(缓存) → 格式 → lint → 安全扫描 → 测试 + 全局覆盖率(≥阈值) + diff 覆盖率(变更行 ≥阈值) → 上传覆盖率报告`。任一步非零退出码 = 阻断合并。cpp 模板为三平台构建矩阵 + 独立 linux 覆盖率 job。
+`.github/workflows/ci.yml` 在每个 PR/push 时跑等价本地 hook + 覆盖率双门禁：`checkout(fetch-depth:0) → toolchain → 依赖(缓存；python/cpp 模板无缓存) → 格式 → lint → 安全扫描 → 测试 + 全局覆盖率(≥阈值) + diff 覆盖率(变更行 ≥阈值) → 上传覆盖率报告`。任一步非零退出码 = 阻断合并。cpp 模板为三平台构建矩阵 + 独立 linux 覆盖率 job。
 
 ### 阶段 3 · Release 发布工作流
 
-`.github/workflows/release.yml` 由 `v*` tag 触发，两段式：**verify job 先行**（tag 格式 + tag↔版本 manifest 一致性，rust/python/node/java/cpp/ruby 校验版本文件；go/php/dotnet 无版本 manifest，校验 tag 规范）→ 构建 → 创建 GitHub Release（无条件；rust/go/cpp/php 附 checksums.txt）→ 若对应 secret 存在则发布到 registry（crates.io / PyPI / npm(--provenance) / Maven Central / RubyGems / NuGet），无 secret 跳过不报错。Secret 清单见 `references/registry-secrets.md`（含产物签名/attestation 加固）。`--changelog release-please` 时另有 `release-please.yml` 自动维护 CHANGELOG.md。
+`.github/workflows/release.yml` 由 `v*` tag 触发，两段式：**verify job 先行**（tag 格式 + tag↔版本 manifest 一致性，rust/python/node/java/cpp/ruby 校验版本文件；go/php/dotnet 无版本 manifest，校验 tag 规范）→ 构建 → 创建 GitHub Release（无条件；rust/go/cpp/php 附 checksums.txt）→ 若对应 secret 存在则发布到 registry（crates.io / PyPI / npm(--provenance) / RubyGems / NuGet；java 发 GitHub Packages，用自动 `GITHUB_TOKEN`），无 secret 跳过不报错。Secret 清单见 `references/registry-secrets.md`（含产物签名/attestation 加固）。`--changelog release-please` 时另有 `release-please.yml` 自动维护 CHANGELOG.md。
 
 ### 阶段 4 · 依赖与安全护栏
 
 - **Dependabot**（`.github/dependabot.yml`）：依赖与 GitHub Actions 版本自动升级 PR
 - **CodeQL**（`.github/workflows/codeql.yml`）：语义级漏洞扫描（`--no-codeql` 可裁剪）
-- 各语言另有专属 SCA（cargo-audit / pip-audit / npm audit / OWASP Dep-Check / govulncheck / bundler-audit / composer audit / dotnet list --vulnerable）
+- 各语言另有专属 SCA（cargo-audit / pip-audit / pnpm audit / OWASP Dep-Check / govulncheck / bundler-audit / composer audit / dotnet list --vulnerable）
 
 ### 🛑 阶段 5 · 验证（标记完成前必做 · STOP）
 
@@ -212,6 +212,9 @@ bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 | 本地 hook 安装                     | `scripts/install-hooks.sh`                                         | 阶段 2         |
 | 已生成项目诊断（doctor）           | `scripts/doctor.sh`                                                | 阶段 5 / 排障  |
 | init 冒烟测试（9 语言端到端）      | `scripts/smoke-test.sh`                                            | 改模板/脚本后  |
+| skill 安装/管理（install/update/uninstall/list-skills/list-agents/status/generate-commands，9 种 agent） | `scripts/install-skill.sh` | 部署 skill 到项目 agent 目录 |
+| pytest 回归套件（122 用例）        | `tests/`                                                           | 改脚本/模板后  |
+| skill 评测集（3 evals / 5 prompts） | `evals/evals.json` / `test-prompts.json`                          | 改触发词/输出约定后 |
 | release-please 可选模板（opt-in）  | `templates/common/release-please.yml`                              | `--changelog release-please` |
 | 模板根                             | `templates/{common,rust,python,node,java,go,cpp,ruby,php,dotnet}/` | 所有阶段       |
 | 多语言项目指引（决策树+hook 合并） | `references/multi-language.md`                                     | 混合项目       |

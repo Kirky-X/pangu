@@ -82,7 +82,7 @@ FFI 脚本**半自动**：官方工具管骨架（maturin 非交互可参数化�
 | `.github/workflows/{lang}-release.yml` | 次语言 Release（各走各的 registry secret）                                  |
 | `.github/workflows/codeql.yml`         | CodeQL（仅主语言基底有；多语言可手动复制成 `{lang}-codeql.yml` 或合并 job） |
 
-每个 `{lang}-release.yml` 独立用各自 registry secret（`${{ secrets.CARGO_REGISTRY_TOKEN }}` / `PYPI_TOKEN` / `NPM_TOKEN`），互不影响，无 secret 跳过。
+每个 `{lang}-release.yml` 独立用各自 registry secret（`${{ secrets.CARGO_REGISTRY_TOKEN }}` / `UV_PUBLISH_TOKEN` / `NPM_TOKEN`），互不影响，无 secret 跳过。
 
 ---
 

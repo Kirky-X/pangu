@@ -32,7 +32,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 两种方式：
 
-**A. Trusted Publishing（推荐，免 token）** — OIDC，无需 secret，在 PyPI 配置 GitHub 仓库 + workflow 名。
+**A. Trusted Publishing（推荐，免 token）** — OIDC，无需 secret，在 PyPI 配置 GitHub 仓库 + workflow 名。注意：生成的 `python/release.yml` 只内置 B 的 token 分支，想走 A 需自行改写 publish job（加 `id-token: write` 并去掉 token 门控）。
 
 ```yaml
 permissions:
@@ -42,10 +42,10 @@ permissions:
   # 无 password，走 trusted publishing
 ```
 
-**B. API Token** — 传统方式。
+**B. API Token** — 传统方式（模板内置的唯一发布分支，只读 `UV_PUBLISH_TOKEN`；只配 `PYPI_TOKEN` 会静默跳过发布）。
 | Secret | 值 |
 |--------|----|
-| `UV_PUBLISH_TOKEN` 或 `PYPI_TOKEN` | `pypi-<token>`（PyPI → Account settings → API tokens，scope 全仓或单项目） |
+| `UV_PUBLISH_TOKEN` | `pypi-<token>`（PyPI → Account settings → API tokens，scope 全仓或单项目） |
 
 ```yaml
 - name: Publish to PyPI
@@ -82,6 +82,8 @@ permissions:
 
 最复杂，需要 GPG 签名 + Sonatype 中央仓库凭证。
 
+> 注意：默认 `java/release.yml` 只发布到 **GitHub Packages**（用自动 `GITHUB_TOKEN`，无需配置任何 secret）。本节是**手动扩展** Maven Central 发布时的凭证配置指南（对应 `java/release.yml` 头部注释），需自行添加发布 job，模板未内置。
+
 | Secret                  | 值                                                     |
 | ----------------------- | ------------------------------------------------------ |
 | `MAVEN_USERNAME`        | Sonatype JIRA 用户名（中央仓库）                       |
@@ -106,18 +108,19 @@ permissions:
 
 ## RubyGems（Ruby）
 
-| Secret                | 值               | 获取                                                            |
-| --------------------- | ---------------- | --------------------------------------------------------------- |
-| `RUBYGEMS_AUTH_TOKEN` | RubyGems API key | rubygems.org → Edit Settings → API Keys（scope：push rubygems） |
+| Secret | 值 | 获取 |
+| ------ | -- | ---- |
+| `RUBYGEMS_API_KEY` | RubyGems API key | rubygems.org → Edit Settings → API Keys（scope：push rubygems） |
 
 ```yaml
-- name: Publish to RubyGems
-  if: ${{ env.RUBYGEMS_AUTH_TOKEN != '' }}
+# release.yml job 片段（门控在 job 级；GEM_HOST_API_KEY 是 gem push 认读的注入变量名）
+publish-rubygems:
   env:
-    GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_AUTH_TOKEN }}
-  run: |
-    gem build *.gemspec
-    gem push *.gem
+    GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+  if: ${{ env.GEM_HOST_API_KEY != '' }}
+  steps:
+    - run: bundle exec rake build
+    - run: gem push pkg/*.gem
 ```
 
 ---

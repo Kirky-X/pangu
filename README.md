@@ -16,15 +16,15 @@
 - **参数化阈值**：init 支持 `--cov <N>` / `--profile core|tool`（核心业务 85 / 工具类 70）/ `--branch` / `--no-release` / `--no-codeql` / `--changelog release-please`，阈值与分支经占位符渲染进 CI/lefthook/工具配置三处，天然一致
 - **两段式 Release**：tag 触发先跑 `verify` job（tag 格式 + tag↔版本 manifest 一致性），tag 打错不进入构建；rust/go/cpp/php 产物附 checksums.txt，npm 发布带 provenance（详见 registry-secrets 的 attestation/cosign 加固）
 - **生成来源可追溯**：init 写入 `.pangu-meta.yml`（pangu 版本/参数/harness 文件清单），模板升级时对照对应 tag 手动 diff；`doctor.sh` 一键体检已生成项目
-- **覆盖率门禁真实生效**：阈值判定硬失败，不以 `|| true` 中和；上传统一走官方 `codecov-action@v4`；cpp 三平台构建矩阵 + 独立覆盖率 job；cpp/php/dotnet CI 依赖缓存
+- **覆盖率门禁真实生效**：阈值判定硬失败，不以 `|| true` 中和；上传统一走官方 `codecov-action@v4`；cpp 三平台构建矩阵 + 独立覆盖率 job；php/dotnet CI 依赖缓存（cpp 模板无依赖缓存）
 - **自身 CI SHA-pin**：pangu 仓库的 workflows 对所有第三方 action 使用 commit SHA 固定引用
 - **依赖护栏**：Dependabot + CodeQL（`--no-codeql` 可裁剪）+ 各语言专属 SCA
 
 ## 📦 安装
 
 ```bash
-# 方式一：从本工作区统一部署（部署到 ~/.zcode/skills 与 ~/.claude/skills）
-bash scripts/sync-skills.sh pangu
+# 方式一：安装到某个项目的 agent 目录（install-skill.sh 共 7 个子命令，支持 9 种 agent）
+bash scripts/install-skill.sh install pangu --target /path/to/project --agent claude
 
 # 方式二：手动复制到 ZCode 技能目录
 cp -r /path/to/pangu ~/.zcode/skills/pangu
@@ -62,11 +62,14 @@ flowchart LR
 
 ## ✅ 测试与验证
 
-2026-10-01 实测（v0.1.6 未发布，工作区版本）：
+2026-10-04 实测（v0.1.6 未发布，工作区版本）：
 
-- **自检门禁**：`bash scripts/selfcheck.sh` 全部通过 — shellcheck 22 个脚本 0 错误、YAML lint 42 个模板文件、9+1 语言模板完整性、SKILL.md 索引校验（70 个引用路径 fail-closed）、init 冒烟测试
+- **自检门禁**：`bash scripts/selfcheck.sh` 全部通过 — shellcheck 22 个脚本 0 错误、YAML lint 42 个模板文件、9 语言模板完整性（skill/common 目录清点在自身 CI integrity job）、SKILL.md 索引校验（72 个引用路径 fail-closed）、init 冒烟测试
 - **init 冒烟测试**（`scripts/smoke-test.sh`，templates-only 端到端）：9 语言 × 默认参数（文件齐全/占位符零残留/YAML 可解析/git 初始化/lefthook 等价性基线/no snippet 残留）+ 参数化断言（`--cov 90 --branch trunk --no-release --no-codeql` 渲染与裁剪正确）全绿
 - **doctor 实测**：对冒烟产物跑 `scripts/doctor.sh` 全部通过（文件/YAML/hooks/门禁/来源记录）
+- **pytest 回归套件**：`python3 -m pytest tests/ -q` 122 用例全部通过（各语言 init / 多语言 / FFI / skill 仓库 / align / bump / install-skill / selfcheck 行为）
+- **多语言前缀与 lint**：`bash scripts/test-multi.sh` ALL GREEN（copy_lang prefix）；`python3 scripts/skill_lint.py .` 0 fail / 0 warn
+- **评测资产**：`evals/evals.json` 3 条评测 + `test-prompts.json` 5 条触发测试；`hooks/pre-push` 为本仓库自用清理钩子（push 前 git gc + cargo clean）
 - pangu 自身 CI（`.github/workflows/ci.yml`）对所有 action 使用 commit SHA 固定引用，含 lint / integrity / smoke 三类 job
 
 ## 📁 目录结构
@@ -75,18 +78,23 @@ flowchart LR
 pangu/
 ├── SKILL.md            # 路由表 + 5 阶段流程 + 失败处置
 ├── skill.json
+├── test-prompts.json   # 5 条触发测试 prompt
 ├── scripts/            # 22 个脚本
 │   ├── init-{rust,python,node,java,go,cpp,ruby,php,dotnet}.sh
 │   ├── init-multi.sh / init-rust-pyo3.sh / init-rust-napi.sh
 │   ├── init-skill.sh / align-skill.sh / bump-skill-version.sh
 │   ├── install-hooks.sh / _common.sh / selfcheck.sh
-│   ├── smoke-test.sh / doctor.sh
-│   └── install-skill.sh
+│   ├── smoke-test.sh / doctor.sh / test-multi.sh
+│   ├── install-skill.sh / skill_lint.py
+│   └── kb/tests/           # 6 个专项回归脚本
 ├── templates/          # 11 个模板目录
 │   ├── common/             # dependabot / codeql / issue-pr 模板 / CODEOWNERS / release-please(opt-in)
 │   ├── {rust,…,dotnet}/    # 各语言 CI(全局+diff 覆盖率) / release(verify 两段式) / hook 配置
 │   └── skill/              # skill 仓库模板（9 个 .template 文件）
-└── references/         # 7 篇参考（languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization）
+├── references/         # 7 篇参考（languages / coverage-standards / hooks-compare / registry-secrets / multi-language / skill-release / build-optimization）
+├── hooks/              # 仓库自用 pre-push 清理（git gc + cargo clean）
+├── tests/              # pytest 套件（122 用例）
+└── evals/              # evals.json（3 条评测）
 ```
 
 ## 🔮 边界
