@@ -1,6 +1,6 @@
 ---
 name: pangu
-description: "工业级项目 harness 初始化（脚手架+CI+Release+hooks+覆盖率门禁）。触发：初始化项目/新建项目/CI 配置/pre-commit/release/脚手架/cargo init/go mod init/dotnet new/覆盖率门禁/安全审计"
+description: "工业级项目 harness 初始化（脚手架+CI+Release+hooks+覆盖率门禁）。触发：初始化项目/新建项目/CI 配置/pre-commit/release/脚手架/cargo init/go mod init/dotnet new/覆盖率门禁/安全审计。边界：初始化期配置安全工具的接入点归本 skill；执行安全审查→tiangang；日常依赖分析与漏洞治理→dayv；项目内规格驱动变更工作流→specmark"
 license: MIT
 metadata:
   version: "0.1.7"
