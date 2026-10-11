@@ -13,6 +13,8 @@
 #   - skill.json 8 字段: name / description / license / version / author / repo / homepage / tag
 #     （与 pangu 实例 skill.json 字段名一致）
 #   - LICENSE 类型: MIT
+#   - 同构镜像一致性: .trae/.trae-cn/.codebuddy 下 skills/<name>/ 与主源 diff -rq 一致
+#     （由 scripts/gen-distribution.sh 构建期生成；不一致即 FAIL）
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -51,6 +53,9 @@ esac
 [ -d "$TARGET_SKILL_DIR" ] || die "目录不存在: $TARGET_SKILL_DIR"
 [ -f "$TARGET_SKILL_DIR/SKILL.md" ] || die "$TARGET_SKILL_DIR 不含 SKILL.md，不像 skill 仓库"
 
+# 规范化（消除 ./ 与尾斜杠，保证 basename 得到真实 skill 名）
+TARGET_SKILL_DIR="$(cd "$TARGET_SKILL_DIR" && pwd)"
+
 # --- 用 skill-dir 名作 SKILL_NAME 占位符填充（--fix 时用）---
 SKILL_NAME_FIX="$(basename "$TARGET_SKILL_DIR")"
 SKILL_NAME_CN_FIX="$SKILL_NAME_FIX"
@@ -88,8 +93,8 @@ run_checks() {
   printf '目标: %s\n' "$TARGET_SKILL_DIR"
   printf '模式: %s\n\n' "$MODE"
 
-  # --- [1/4] 必备文件 ---
-  printf '[1/4] 必备文件\n'
+  # --- [1/5] 必备文件 ---
+  printf '[1/5] 必备文件\n'
   local required_files=(
     ".gitignore"
     "LICENSE"
@@ -108,8 +113,8 @@ run_checks() {
     fi
   done
 
-  # --- [2/4] .gitignore 关键忽略项 ---
-  printf '\n[2/4] .gitignore 关键忽略项\n'
+  # --- [2/5] .gitignore 关键忽略项 ---
+  printf '\n[2/5] .gitignore 关键忽略项\n'
   local gitignore_file="$TARGET_SKILL_DIR/.gitignore"
   local required_ignores=(".DS_Store" ".vscode" ".meta" ".venv" "node_modules" "__pycache__" "*.log" ".env")
   if [ -f "$gitignore_file" ]; then
@@ -128,7 +133,7 @@ run_checks() {
   fi
 
   # --- [3/4] skill.json 8 字段 ---
-  printf '\n[3/4] skill.json 字段（8 字段）\n'
+  printf '\n[3/5] skill.json 字段（8 字段）\n'
   local skill_json="$TARGET_SKILL_DIR/skill.json"
   # 字段名与 pangu 实例 skill.json 一致（Rule 11 惯例优先）
   local required_fields=("name" "description" "license" "version" "author" "repo" "homepage" "tag")
@@ -147,8 +152,8 @@ run_checks() {
     done
   fi
 
-  # --- [4/4] LICENSE 类型 ---
-  printf '\n[4/4] LICENSE 类型\n'
+  # --- [4/5] LICENSE 类型 ---
+  printf '\n[4/5] LICENSE 类型\n'
   local license_file="$TARGET_SKILL_DIR/LICENSE"
   if [ -f "$license_file" ]; then
     if head -3 "$license_file" | grep -qi "MIT License" 2>/dev/null; then
@@ -158,6 +163,46 @@ run_checks() {
     fi
   else
     mark_fail "LICENSE 不存在"
+  fi
+
+  # --- [5/5] 同构镜像一致性（diff -rq） ---
+  printf '\n[5/5] 同构镜像一致性\n'
+  local skill_name_local
+  skill_name_local="$(basename "$TARGET_SKILL_DIR")"
+  local mirror_found=0
+  local mirror_roots=(".trae" ".trae-cn" ".codebuddy")
+  local mirror_root mirror_path diff_out diff_n
+  for mirror_root in "${mirror_roots[@]}"; do
+    mirror_path="$TARGET_SKILL_DIR/$mirror_root/skills/$skill_name_local"
+    [ -d "$mirror_path" ] || continue
+    mirror_found=1
+    if diff_out="$(diff -rq "$TARGET_SKILL_DIR" "$mirror_path" \
+        --exclude=.git --exclude=.claude-plugin --exclude=.claude \
+        --exclude=.github --exclude=.githooks --exclude=.absorb-external \
+        --exclude=.trae --exclude=.trae-cn --exclude=.codebuddy --exclude=.cursor \
+        --exclude=AGENTS.md \
+        --exclude=specmark --exclude=__pycache__ --exclude=.pytest_cache \
+        --exclude=.analysis --exclude=.venv --exclude=.meta --exclude=node_modules \
+        --exclude=.vercel --exclude='*.pyc' --exclude=.coverage \
+        --exclude=open-code-review --exclude=openspec --exclude=logs \
+        --exclude=results.tsv --exclude='*.lock' \
+        --exclude=corpus --exclude=temp \
+        --exclude=.zcode --exclude=.mimocode --exclude=dependency_report.json \
+        --exclude=agnes-output --exclude=boogu-output \
+        --exclude=kolors-output --exclude=video-output \
+        --exclude=.env --exclude='.env.*' --exclude='*.pem' --exclude='*.key' \
+        --exclude=.netrc --exclude=.npmrc --exclude='credentials*' --exclude='id_rsa*' \
+        --exclude='*.log' --exclude=.DS_Store \
+        2>&1)"; then
+      mark_pass "$mirror_root/skills/$skill_name_local（与主源一致）"
+    else
+      diff_n="$(printf '%s\n' "$diff_out" | grep -c . || true)"
+      mark_fail "$mirror_root/skills/$skill_name_local 与主源不一致（$diff_n 处，跑 scripts/gen-distribution.sh 重建）："
+      printf '%s\n' "$diff_out" | awk 'NF==0{next} c++<3{printf "        %s\n", $0}'
+    fi
+  done
+  if [ "$mirror_found" -eq 0 ]; then
+    mark_pass "无同构镜像目录（未配置分发，跳过）"
   fi
 
   printf '\n--- 汇总: ✅ %d  ❌ %d  ⚠️  %d ---\n' "$PASS_COUNT" "$FAIL_COUNT" "$WARN_COUNT"

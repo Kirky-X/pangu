@@ -3,7 +3,7 @@ name: pangu
 description: "工业级项目 harness 初始化（脚手架+CI+Release+hooks+覆盖率门禁）。触发：初始化项目/新建项目/CI 配置/pre-commit/release/脚手架/cargo init/go mod init/dotnet new/覆盖率门禁/安全审计。边界：初始化期配置安全工具的接入点归本 skill；执行安全审查→tiangang；日常依赖分析与漏洞治理→dayv；项目内规格驱动变更工作流→specmark"
 license: MIT
 metadata:
-  version: "0.1.8"
+  version: "0.1.9"
   author: "Kirky-X"
   repo: "https://github.com/Kirky-X/pangu"
   tags: "project-init, scaffold, ci-cd, pre-commit, lefthook, release, coverage-gate, harness, multi-language"
@@ -79,15 +79,24 @@ bash <skill>/scripts/align-skill.sh <skill-dir> [--dry-run] [--fix]
 - `--dry-run`（默认）：检查报告，不修改
 - `--fix`：补齐缺失文件、优化 .gitignore
 
-检查清单：8 个必备文件 + .gitignore 关键忽略项 + skill.json 8 字段 + LICENSE 类型。
+检查清单：8 个必备文件 + .gitignore 关键忽略项 + skill.json 8 字段 + LICENSE 类型 + 同构镜像一致性（`.trae/.trae-cn/.codebuddy` 下 `skills/<name>/` 与主源 diff -rq；由 `gen-distribution.sh` 构建期生成，漂移即 FAIL）。
+
+### 构建期分发到其他运行时
+
+```bash
+bash <skill>/scripts/gen-distribution.sh <skill-dir> [--globs "a/**,b/**"] [--dry-run]
+```
+
+生成两类分发物：① 同构运行时整目录镜像（默认 `.trae/skills/<name>`，目录结构与原生一致，可按需加载全部 references）；② 无渐进披露能力运行时的浓缩单文件（Cursor 的 mdc 规则文件 frontmatter 带 globs 实现文件触发；`AGENTS.md` 按概览→路由→命令→强制流程→reference 表重排；写入 .github/ 的 copilot 指令文件压缩为 Core Directive + Non-Negotiables）。浓缩版口径：方法完整、门禁完整，references 细节为概要，需深度时连 references 一起复制过去。与 `install-skill.sh` 分层：本脚本产出入库物（随仓库提交），安装期部署仍走 `install-skill.sh`。
 
 ### Skill 仓库模板资产
 
 | 资产 | 路径 | 用途 |
 | --- | --- | --- |
 | 模板根 | `templates/skill/` | 9 个 .template 文件 |
-| 初始化脚本 | `scripts/init-skill.sh` | 新建 skill 仓库 |
-| 对齐脚本 | `scripts/align-skill.sh` | 存量 skill 渐进式对齐 |
+| 初始化脚本 | `scripts/init-skill.sh` | 新建 skill 仓库（next steps 含分发入口） |
+| 对齐脚本 | `scripts/align-skill.sh` | 存量 skill 渐进式对齐（含同构镜像 diff -rq 一致性检查 [5/5]） |
+| 分发生成脚本 | `scripts/gen-distribution.sh` | 构建期生成同构镜像（`.trae/skills/<name>`）+ 浓缩单文件（Cursor mdc 带 globs / AGENTS.md 重排 / copilot-instructions 的 Core Directive+Non-Negotiables）；与 install-skill.sh 分层：本脚本产出入库物，install-skill.sh 做安装期部署 |
 
 ---
 

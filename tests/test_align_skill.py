@@ -67,8 +67,8 @@ class DryRunTest(unittest.TestCase):
     def test_init_output_is_fully_aligned(self):
         r = run_script("align-skill.sh", [self.skill_dir])
         self.assertEqual(r.returncode, 0, strip_ansi(r.stdout) + strip_ansi(r.stderr))
-        # 8 文件 + 8 gitignore 项 + 8 字段 + MIT = 25 全过
-        self.assertIn("✅ 25  ❌ 0", strip_ansi(r.stdout))
+        # 8 文件 + 8 gitignore 项 + 8 字段 + MIT + 无镜像跳过 = 26 全过
+        self.assertIn("✅ 26  ❌ 0", strip_ansi(r.stdout))
         self.assertIn("全绿，退出 0", strip_ansi(r.stdout))
 
     def test_broken_repo_reports_missing_items_and_exits_1(self):

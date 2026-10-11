@@ -10,7 +10,16 @@
 
 - **9 语言一键初始化**：Rust / Python / Node / Java / Go / C++ / Ruby / PHP / .NET，每语言配套专属 CI 模板、Release 工作流、安全扫描（cargo-audit、bandit、gosec、OWASP Dep-Check 等）与覆盖率工具
 - **3 种混合形态**：并存型 monorepo（`init-multi.sh`）、FFI rust→python（`init-rust-pyo3.sh`）、FFI rust→node（`init-rust-napi.sh`）
-- **第 10 种项目类型：skill 仓库本身**：`init-skill.sh` 一键初始化标准 skill 仓库；`align-skill.sh` 对齐存量 skill（`--dry-run`/`--fix`）；`bump-skill-version.sh` 传播版本号
+- **第 10 种项目类型：skill 仓库本身**：`init-skill.sh` 一键初始化标准 skill 仓库；`align-skill.sh` 对齐存量 skill（`--dry-run`/`--fix`，含同构镜像 diff -rq 一致性检查）；`bump-skill-version.sh` 传播版本号
+- **构建期分发**：`gen-distribution.sh` 生成两类分发物——① 同构运行时整目录镜像（`.trae/skills/<name>`，可按需加载全部 references）；② 无渐进披露能力运行时的浓缩单文件（Cursor mdc frontmatter 带 globs 实现文件触发 / AGENTS.md 按概览→路由→命令→强制流程→reference 表重排 / copilot-instructions 压缩为 Core Directive + Non-Negotiables）。浓缩版口径：方法完整、门禁完整，references 细节为概要，需深度时连 references 一起复制过去
+
+三档分发深度（按目标运行时的渐进披露能力选）：
+
+| 档位 | 产物 | 适用运行时 | 装法 |
+| --- | --- | --- | --- |
+| 完整 | 仓库内 references/ 全量 | Trae / CodeBuddy（目录结构与 Claude 原生一致） | `gen-distribution.sh --mirror-root .trae` 生成同构镜像入库 |
+| 镜像 | 同构整目录副本 | 同上（`.trae-cn` 等按根生成） | 随仓库提交，agent 直接加载 |
+| 单文件 | 浓缩版（mdc / AGENTS.md / copilot-instructions） | Cursor / Codex / Copilot | `gen-distribution.sh` 随仓库生成；需深度时把 references/ 一起复制过去让它按需读 |
 - **门禁即代码**：`.pre-commit-config.yaml` 为门禁单一来源，lefthook + CI 镜核心子集，阈值统一（fast 核心：格式/lint/license-deny；slow：覆盖率全局+diff 双门禁 + 安全审计 → lefthook pre-push + CI，9 语言等价，冒烟测试守护）
 - **diff coverage 双门禁**：全局覆盖率之外，对相对基线分支的新增/修改行同样设阈值（diff-cover 对接 7 语言；Go/Ruby 暂仅全局，升级路径见 coverage-standards）——新代码 0 覆盖无法再靠存量拉高全局通过
 - **参数化阈值**：init 支持 `--cov <N>` / `--profile core|tool`（核心业务 85 / 工具类 70）/ `--branch` / `--no-release` / `--no-codeql` / `--changelog release-please`，阈值与分支经占位符渲染进 CI/lefthook/工具配置三处，天然一致
@@ -79,10 +88,11 @@ pangu/
 ├── SKILL.md            # 路由表 + 5 阶段流程 + 失败处置
 ├── skill.json
 ├── test-prompts.json   # 5 条触发测试 prompt
-├── scripts/            # 22 个脚本
+├── scripts/            # 23 个脚本
 │   ├── init-{rust,python,node,java,go,cpp,ruby,php,dotnet}.sh
 │   ├── init-multi.sh / init-rust-pyo3.sh / init-rust-napi.sh
 │   ├── init-skill.sh / align-skill.sh / bump-skill-version.sh
+│   ├── gen-distribution.sh
 │   ├── install-hooks.sh / _common.sh / selfcheck.sh
 │   ├── smoke-test.sh / doctor.sh / test-multi.sh
 │   ├── install-skill.sh / skill_lint.py

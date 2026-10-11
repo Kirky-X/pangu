@@ -150,13 +150,19 @@ cat <<EOF
   3. 编辑 skill.json —— 调整 description 字段与 tag 数组
   4. 编辑 test-prompts.json —— 填充测试用例（prompt + expectation）
   5. 在 references/ 添加参考资料
-  6. 首次提交:
+  6. 分发到其他运行时（按需）:
+       bash $SKILL_DIR/scripts/gen-distribution.sh $PROJ_DIR
+       生成同构镜像（.trae/skills/<name>）+ 浓缩单文件（Cursor mdc / AGENTS.md /
+       copilot-instructions）——浓缩版方法完整、门禁完整，细节为概要，需深度时把
+       references/ 一起复制过去；镜像一致性由 align-skill.sh [5/5] 检查守护
+  7. 首次提交:
        cd $PROJ_DIR
        git commit -m "chore: bootstrap skill repo"
-  7. 发版前：按 references/skill-release.md 跑 6 步骤 SOP
+  8. 发版前：按 references/skill-release.md 跑 6 步骤 SOP
        （版本号传播用 scripts/bump-skill-version.sh <v>）
-  8. 推 tag 触发 release:
+  9. 发布动作（打 tag / 推远端）属于对外发布，须经你显式确认后再执行:
        git tag v0.1.0 && git push --tags
+       —— 未确认前不要自动执行
 
 对齐存量 skill 仓库用: bash $SKILL_DIR/scripts/align-skill.sh $PROJ_DIR --dry-run
 ————————————————————————————————————————————————————————
