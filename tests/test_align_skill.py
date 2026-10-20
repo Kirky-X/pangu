@@ -144,5 +144,75 @@ class FixModeTest(unittest.TestCase):
         self.assertIn("LICENSE 非 MIT", strip_ansi(r.stdout))
 
 
+class OnlyCheckTest(unittest.TestCase):
+    """--only 单项触发：只跑所选检查项，并只按该项判退出码。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="pangu-align-only-")
+        r = run_script("init-skill.sh", ["only-skill", "--target-dir", cls.tmp + "/only-skill"])
+        assert r.returncode == 0, r.stderr
+        cls.skill_dir = os.path.join(cls.tmp, "only-skill")
+        r = run_script("gen-distribution.sh", [cls.skill_dir])
+        assert r.returncode == 0, r.stderr
+        cls.mirror_md = os.path.join(cls.skill_dir, ".trae", "skills", "only-skill", "SKILL.md")
+        cls.mirror_md_orig = read(cls.mirror_md)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_only_mirror_consistent_exits_0(self):
+        r = run_script("align-skill.sh", [self.skill_dir, "--only", "mirror"])
+        self.assertEqual(r.returncode, 0, strip_ansi(r.stdout) + strip_ansi(r.stderr))
+        out = strip_ansi(r.stdout)
+        self.assertIn("单项: mirror", out)
+        self.assertIn("与主源一致", out)
+        self.assertIn("✅ 1  ❌ 0", out)
+
+    def test_only_mirror_drift_exits_1(self):
+        with open(self.mirror_md, "a", encoding="utf-8") as f:
+            f.write("\ndrift\n")
+        try:
+            r = run_script("align-skill.sh", [self.skill_dir, "--only", "mirror"])
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("与主源不一致", strip_ansi(r.stdout))
+            self.assertIn("单项检查未通过: mirror", strip_ansi(r.stderr))
+        finally:
+            write(self.mirror_md, self.mirror_md_orig)
+
+    def test_only_numeric_alias_works(self):
+        r = run_script("align-skill.sh", [self.skill_dir, "--only", "5"])
+        self.assertEqual(r.returncode, 0, strip_ansi(r.stdout) + strip_ansi(r.stderr))
+        self.assertIn("单项: mirror", strip_ansi(r.stdout))
+
+    def test_only_other_item_ignores_mirror_drift(self):
+        with open(self.mirror_md, "a", encoding="utf-8") as f:
+            f.write("\ndrift\n")
+        try:
+            r = run_script("align-skill.sh", [self.skill_dir, "--only", "license"])
+            self.assertEqual(r.returncode, 0, strip_ansi(r.stdout) + strip_ansi(r.stderr))
+            self.assertNotIn("与主源不一致", strip_ansi(r.stdout))
+        finally:
+            write(self.mirror_md, self.mirror_md_orig)
+
+    def test_only_unknown_item_exits_1(self):
+        r = run_script("align-skill.sh", [self.skill_dir, "--only", "bogus"])
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("未知检查项: bogus", strip_ansi(r.stderr))
+
+    def test_only_missing_value_exits_1(self):
+        r = run_script("align-skill.sh", [self.skill_dir, "--only"])
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--only 缺少检查项", strip_ansi(r.stderr))
+
+    def test_help_lists_only_items(self):
+        r = run_script("align-skill.sh", ["-h"])
+        self.assertEqual(r.returncode, 0)
+        out = strip_ansi(r.stdout)
+        self.assertIn("--only", out)
+        self.assertIn("mirror(5)", out)
+
+
 if __name__ == "__main__":
     unittest.main()

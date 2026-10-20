@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # 存量 skill 仓库渐进式对齐标准 skill 模板。
 # 用法:
-#   align-skill.sh <skill-dir> [--dry-run] [--fix]
+#   align-skill.sh <skill-dir> [--dry-run] [--fix] [--only <检查项>]
 #   --dry-run（默认）: 只检查不修改，有 ❌ 退出 1
 #   --fix:            补齐缺失文件（不覆盖已有）、追加 .gitignore 缺失项、不碰 SKILL.md
 #                     fix 后重新检查，全绿退出 0，否则退出 1
+#   --only <检查项>:  只跑单项检查，只按该项判退出码（slug 或序号 1-5）
+#                     可与 --fix 同用：fix 仍补齐全部缺失项，随后只重检所选项
 #
 # 检查清单:
 #   - 8 个必备文件: .gitignore / LICENSE / skill.json / .claude-plugin/marketplace.json
@@ -15,6 +17,10 @@
 #   - LICENSE 类型: MIT
 #   - 同构镜像一致性: .trae/.trae-cn/.codebuddy 下 skills/<name>/ 与主源 diff -rq 一致
 #     （由 scripts/gen-distribution.sh 构建期生成；不一致即 FAIL）
+#
+# --only 可用检查项（slug（序号））:
+#   files(1) 必备文件 | gitignore(2) .gitignore 关键忽略项 | skill-json(3) skill.json 字段
+#   license(4) LICENSE 类型 | mirror(5) 同构镜像一致性
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -23,17 +29,60 @@ TPL_SKILL="$SKILL_DIR/templates/skill"
 # --- 参数解析 ---
 SKILL_DIR_ARG=""
 MODE="dry-run"
+ONLY=""
+
+# 检查项注册表：slug 与名称同序（序号 = 下标 + 1）
+CHECK_SLUGS=(files gitignore skill-json license mirror)
+CHECK_NAMES=("必备文件" ".gitignore 关键忽略项" "skill.json 字段（8 字段）" "LICENSE 类型" "同构镜像一致性")
+
+# resolve_only <raw> — 归一化 --only 取值（slug 或序号 1-5）到全局 ONLY；非法值 die
+resolve_only() {
+  local raw="$1" i
+  case "$raw" in
+    1) ONLY="files"; return 0 ;;
+    2) ONLY="gitignore"; return 0 ;;
+    3) ONLY="skill-json"; return 0 ;;
+    4) ONLY="license"; return 0 ;;
+    5) ONLY="mirror"; return 0 ;;
+  esac
+  for i in "${!CHECK_SLUGS[@]}"; do
+    if [ "${CHECK_SLUGS[$i]}" = "$raw" ]; then
+      ONLY="${CHECK_SLUGS[$i]}"
+      return 0
+    fi
+  done
+  die "未知检查项: $raw（可用 slug: ${CHECK_SLUGS[*]}；或序号 1-5）"
+}
+
+# check_index <slug> — 该检查项在清单中的序号（1-5）
+check_index() {
+  local i
+  for i in "${!CHECK_SLUGS[@]}"; do
+    [ "${CHECK_SLUGS[$i]}" = "$1" ] && { printf '%d' $((i + 1)); return 0; }
+  done
+  printf '0'
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) MODE="dry-run"; shift ;;
     --fix)     MODE="fix"; shift ;;
+    --only)
+      [ $# -ge 2 ] || die "--only 缺少检查项（用法: align-skill.sh <skill-dir> --only <检查项>）"
+      resolve_only "$2"
+      shift 2 ;;
     -h|--help)
       cat <<EOF
-用法: align-skill.sh <skill-dir> [--dry-run] [--fix]
+用法: align-skill.sh <skill-dir> [--dry-run] [--fix] [--only <检查项>]
   <skill-dir>  必填，指向已有 skill 仓库根目录
   --dry-run    默认。只检查不修改；有 ❌ 退出 1
   --fix        补齐缺失文件 + 追加 .gitignore 缺失项；fix 后重新检查，全绿退出 0
+  --only       只跑单项检查，只按该项判退出码。检查项（slug（序号））:
+                 files(1) 必备文件
+                 gitignore(2) .gitignore 关键忽略项
+                 skill-json(3) skill.json 字段
+                 license(4) LICENSE 类型
+                 mirror(5) 同构镜像一致性
 EOF
       exit 0 ;;
     --*) die "未知选项: $1" ;;
@@ -86,15 +135,8 @@ mark_pass() { printf '  ✅ %s\n' "$1"; PASS_COUNT=$((PASS_COUNT + 1)); }
 mark_fail() { printf '  ❌ %s\n' "$1"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
 mark_warn() { printf '  ⚠️  %s\n' "$1"; WARN_COUNT=$((WARN_COUNT + 1)); }
 
-# run_checks — 执行完整检查清单，更新计数器
-run_checks() {
-  FAIL_COUNT=0; WARN_COUNT=0; PASS_COUNT=0
-  printf '\n=== Skill 仓库对齐检查 ===\n'
-  printf '目标: %s\n' "$TARGET_SKILL_DIR"
-  printf '模式: %s\n\n' "$MODE"
-
-  # --- [1/5] 必备文件 ---
-  printf '[1/5] 必备文件\n'
+# check_files — [1/5] 8 个必备文件
+check_files() {
   local required_files=(
     ".gitignore"
     "LICENSE"
@@ -112,9 +154,10 @@ run_checks() {
       mark_fail "$f （缺失）"
     fi
   done
+}
 
-  # --- [2/5] .gitignore 关键忽略项 ---
-  printf '\n[2/5] .gitignore 关键忽略项\n'
+# check_gitignore — [2/5] .gitignore 关键忽略项
+check_gitignore() {
   local gitignore_file="$TARGET_SKILL_DIR/.gitignore"
   local required_ignores=(".DS_Store" ".vscode" ".meta" ".venv" "node_modules" "__pycache__" "*.log" ".env")
   if [ -f "$gitignore_file" ]; then
@@ -131,9 +174,10 @@ run_checks() {
       mark_fail "$pat （.gitignore 不存在）"
     done
   fi
+}
 
-  # --- [3/4] skill.json 8 字段 ---
-  printf '\n[3/5] skill.json 字段（8 字段）\n'
+# check_skill_json — [3/5] skill.json 8 字段
+check_skill_json() {
   local skill_json="$TARGET_SKILL_DIR/skill.json"
   # 字段名与 pangu 实例 skill.json 一致（Rule 11 惯例优先）
   local required_fields=("name" "description" "license" "version" "author" "repo" "homepage" "tag")
@@ -151,9 +195,10 @@ run_checks() {
       mark_fail "$fld （skill.json 不存在）"
     done
   fi
+}
 
-  # --- [4/5] LICENSE 类型 ---
-  printf '\n[4/5] LICENSE 类型\n'
+# check_license — [4/5] LICENSE 类型
+check_license() {
   local license_file="$TARGET_SKILL_DIR/LICENSE"
   if [ -f "$license_file" ]; then
     if head -3 "$license_file" | grep -qi "MIT License" 2>/dev/null; then
@@ -164,9 +209,10 @@ run_checks() {
   else
     mark_fail "LICENSE 不存在"
   fi
+}
 
-  # --- [5/5] 同构镜像一致性（diff -rq） ---
-  printf '\n[5/5] 同构镜像一致性\n'
+# check_mirror — [5/5] 同构镜像一致性（diff -rq）
+check_mirror() {
   local skill_name_local
   skill_name_local="$(basename "$TARGET_SKILL_DIR")"
   local mirror_found=0
@@ -203,6 +249,48 @@ run_checks() {
   done
   if [ "$mirror_found" -eq 0 ]; then
     mark_pass "无同构镜像目录（未配置分发，跳过）"
+  fi
+}
+
+# want_check <slug> — 该项是否要跑（--only 时只跑所选项）
+want_check() {
+  [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]
+}
+
+# run_checks — 执行检查清单（--only 时只跑所选项），更新计数器
+run_checks() {
+  FAIL_COUNT=0; WARN_COUNT=0; PASS_COUNT=0
+  printf '\n=== Skill 仓库对齐检查 ===\n'
+  printf '目标: %s\n' "$TARGET_SKILL_DIR"
+  printf '模式: %s\n' "$MODE"
+  if [ -n "$ONLY" ]; then
+    printf '单项: %s（%s/5 %s）\n' "$ONLY" "$(check_index "$ONLY")" "${CHECK_NAMES[$(check_index "$ONLY") - 1]}"
+  fi
+  printf '\n'
+
+  if want_check files; then
+    printf '[1/5] 必备文件\n'
+    check_files
+  fi
+
+  if want_check gitignore; then
+    printf '\n[2/5] .gitignore 关键忽略项\n'
+    check_gitignore
+  fi
+
+  if want_check skill-json; then
+    printf '\n[3/5] skill.json 字段（8 字段）\n'
+    check_skill_json
+  fi
+
+  if want_check license; then
+    printf '\n[4/5] LICENSE 类型\n'
+    check_license
+  fi
+
+  if want_check mirror; then
+    printf '\n[5/5] 同构镜像一致性\n'
+    check_mirror
   fi
 
   printf '\n--- 汇总: ✅ %d  ❌ %d  ⚠️  %d ---\n' "$PASS_COUNT" "$FAIL_COUNT" "$WARN_COUNT"
@@ -269,17 +357,33 @@ if [ "$MODE" = "fix" ]; then
   printf '\n=== 修复后重新检查 ===\n'
   run_checks
   if [ "$FAIL_COUNT" -eq 0 ]; then
-    ok "全绿，退出 0"
+    if [ -n "$ONLY" ]; then
+      ok "单项检查通过: $ONLY，退出 0"
+    else
+      ok "全绿，退出 0"
+    fi
     exit 0
   else
-    die "仍有 ❌ $FAIL_COUNT 项未通过（可能需手动处理，如 skill.json 字段内容）"
+    if [ -n "$ONLY" ]; then
+      die "单项检查未通过: $ONLY（❌ $FAIL_COUNT 项）"
+    else
+      die "仍有 ❌ $FAIL_COUNT 项未通过（可能需手动处理，如 skill.json 字段内容）"
+    fi
   fi
 else
   run_checks
   if [ "$FAIL_COUNT" -eq 0 ]; then
-    ok "全绿，退出 0"
+    if [ -n "$ONLY" ]; then
+      ok "单项检查通过: $ONLY，退出 0"
+    else
+      ok "全绿，退出 0"
+    fi
     exit 0
   else
-    die "发现 ❌ $FAIL_COUNT 项问题（用 --fix 自动补齐缺失文件与 .gitignore；skill.json 字段内容需手动编辑）"
+    if [ -n "$ONLY" ]; then
+      die "单项检查未通过: $ONLY（❌ $FAIL_COUNT 项）"
+    else
+      die "发现 ❌ $FAIL_COUNT 项问题（用 --fix 自动补齐缺失文件与 .gitignore；skill.json 字段内容需手动编辑）"
+    fi
   fi
 fi
