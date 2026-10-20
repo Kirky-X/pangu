@@ -2,6 +2,10 @@
 name: {{SKILL_NAME}}
 description: "{{SKILL_DESCRIPTION}}"
 license: MIT
+metadata:
+  version: "0.1.0"
+  author: "{{SKILL_AUTHOR}}"
+  repo: "https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}"
 ---
 
 # {{SKILL_NAME_CN}} ({{SKILL_NAME}})
@@ -31,6 +35,14 @@ license: MIT
 1. **预存资产优先** — references/ 中的参考资料直接引用，不凭空生成
 2. **证据闭环** — 没有输出证据的完成叫自嗨
 3. **不臆测** — 调用未知脚本前先 Read 确认行为
+
+## 分发到其他运行时
+
+```bash
+bash <pangu>/scripts/gen-distribution.sh .
+```
+
+`<pangu>` = pangu 安装目录（如 `~/.zcode/skills/pangu`）。生成两类分发物：① 同构运行时整目录镜像（`.trae/skills/{{SKILL_NAME}}`，目录结构与原生一致，可按需加载全部 references）；② 无渐进披露能力运行时的浓缩单文件（Cursor mdc / AGENTS.md / copilot-instructions）。浓缩版口径：方法完整、门禁完整，references 细节为概要，需深度时连 references/ 一起复制过去。镜像一致性由 `align-skill.sh` [5/5] 检查守护。
 
 ## 参考资产索引
 

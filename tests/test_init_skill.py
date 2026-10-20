@@ -135,6 +135,14 @@ class FullInitTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("cn-def", read(os.path.join(self.tmp, "cn-def", "SKILL.md")))
 
+    def test_generated_files_register_distribution_entry(self):
+        r, d = self.init_std()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for name in ("SKILL.md", "README.md", "README_EN.md"):
+            content = read(os.path.join(d, name))
+            self.assertIn("gen-distribution.sh", content, f"{name} 缺分发入口行")
+            self.assertIn("references/", content, f"{name} 缺「连 references 一起复制」提示")
+
 
 if __name__ == "__main__":
     unittest.main()

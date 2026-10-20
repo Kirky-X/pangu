@@ -32,6 +32,19 @@ git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git ~/.claude/skill
 
 加载本 skill 后，按 [SKILL.md](SKILL.md) 中的工作流执行。
 
+## 分发到其他运行时
+
+```bash
+bash <pangu>/scripts/gen-distribution.sh .
+```
+
+`<pangu>` = pangu 安装目录（如 `~/.zcode/skills/pangu`）。生成两类分发物：
+
+- **同构镜像**：`.trae/skills/{{SKILL_NAME}}`（或 `.trae-cn` / `.codebuddy`），目录结构与原生一致，可按需加载全部 references
+- **浓缩单文件**：Cursor mdc / AGENTS.md / copilot-instructions，供无渐进披露能力的运行时使用
+
+浓缩版口径：方法完整、门禁完整，references 细节为概要，需深度时连 references/ 一起复制过去。
+
 ## 开发
 
 ```bash

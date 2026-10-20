@@ -32,6 +32,19 @@ git clone https://github.com/{{SKILL_AUTHOR}}/{{SKILL_NAME}}.git ~/.claude/skill
 
 After loading this skill, follow the workflow in [SKILL.md](SKILL.md).
 
+## Distribution to other runtimes
+
+```bash
+bash <pangu>/scripts/gen-distribution.sh .
+```
+
+`<pangu>` = the pangu install directory (e.g. `~/.zcode/skills/pangu`). It generates two kinds of artifacts:
+
+- **Isomorphic mirror**: `.trae/skills/{{SKILL_NAME}}` (or `.trae-cn` / `.codebuddy`), same directory layout as the native runtime, loads all references on demand
+- **Condensed single file**: Cursor mdc / AGENTS.md / copilot-instructions, for runtimes without progressive disclosure
+
+The condensed version keeps methods and gates complete, but reference details are summaries. Copy `references/` along when deeper detail is needed.
+
 ## Development
 
 ```bash
