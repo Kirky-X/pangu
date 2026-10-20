@@ -15,11 +15,12 @@
 
 三档分发深度（按目标运行时的渐进披露能力选）：
 
-| 档位 | 产物 | 适用运行时 | 装法 |
-| --- | --- | --- | --- |
-| 完整 | 仓库内 references/ 全量 | Trae / CodeBuddy（目录结构与 Claude 原生一致） | `gen-distribution.sh --mirror-root .trae` 生成同构镜像入库 |
-| 镜像 | 同构整目录副本 | 同上（`.trae-cn` 等按根生成） | 随仓库提交，agent 直接加载 |
-| 单文件 | 浓缩版（mdc / AGENTS.md / copilot-instructions） | Cursor / Codex / Copilot | `gen-distribution.sh` 随仓库生成；需深度时把 references/ 一起复制过去让它按需读 |
+| 档位   | 产物                                             | 适用运行时                                     | 装法                                                                            |
+| ------ | ------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------- |
+| 完整   | 仓库内 references/ 全量                          | Trae / CodeBuddy（目录结构与 Claude 原生一致） | `gen-distribution.sh --mirror-root .trae` 生成同构镜像入库                      |
+| 镜像   | 同构整目录副本                                   | 同上（`.trae-cn` 等按根生成）                  | 随仓库提交，agent 直接加载                                                      |
+| 单文件 | 浓缩版（mdc / AGENTS.md / copilot-instructions） | Cursor / Codex / Copilot                       | `gen-distribution.sh` 随仓库生成；需深度时把 references/ 一起复制过去让它按需读 |
+
 - **门禁即代码**：`.pre-commit-config.yaml` 为门禁单一来源，lefthook + CI 镜核心子集，阈值统一（fast 核心：格式/lint/license-deny；slow：覆盖率全局+diff 双门禁 + 安全审计 → lefthook pre-push + CI，9 语言等价，冒烟测试守护）
 - **diff coverage 双门禁**：全局覆盖率之外，对相对基线分支的新增/修改行同样设阈值（diff-cover 对接 7 语言；Go/Ruby 暂仅全局，升级路径见 coverage-standards）——新代码 0 覆盖无法再靠存量拉高全局通过
 - **参数化阈值**：init 支持 `--cov <N>` / `--profile core|tool`（核心业务 85 / 工具类 70）/ `--branch` / `--no-release` / `--no-codeql` / `--changelog release-please`，阈值与分支经占位符渲染进 CI/lefthook/工具配置三处，天然一致
