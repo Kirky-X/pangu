@@ -32,9 +32,13 @@ def run_script(script, args=(), cwd=None, mock_dir=None, env_extra=None, timeout
         env["PATH"] = mock_dir + os.pathsep + env.get("PATH", "")
     if env_extra:
         env.update(env_extra)
+    # errors="replace"：脚本输出若含非法 UTF-8 字节（如 macOS bash3.2 把
+    # $VAR 后全角字符并入变量名时的报错字节），让断言拿到可读文本失败，
+    # 而不是在解码层抛 UnicodeDecodeError 掩盖真实差异。
     return subprocess.run(
         ["bash", os.path.join(SCRIPTS, script), *args],
-        cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout,
+        cwd=cwd, env=env, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=timeout,
     )
 
 
@@ -47,7 +51,8 @@ def run_bash(body, cwd=None, mock_dir=None, env_extra=None, timeout=120):
         env.update(env_extra)
     return subprocess.run(
         ["bash", "-c", body], cwd=cwd, env=env,
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=timeout,
     )
 
 

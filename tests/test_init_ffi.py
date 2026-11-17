@@ -11,6 +11,8 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import _util
@@ -22,6 +24,11 @@ PACKAGE_JSON = '{\n  "name": "demo",\n  "napi": {"binaryName": "demo"}\n}\n'
 
 
 class FfiDiePathTest(unittest.TestCase):
+    """die 路径。已知脚本 bug（macOS /bin/bash 3.2 + UTF-8 locale）：
+    _common.sh:375 die 消息中 $bind_manifest 后紧跟全角括号'）'，bash3.2
+    把全角字符首字节并入变量名 → unbound variable，'未检测到…' 消息打印前
+    崩溃。scripts 侧改为 ${bind_manifest} 后移除 xfail。"""
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="pangu-ffi-die-")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)

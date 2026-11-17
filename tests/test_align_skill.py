@@ -12,6 +12,8 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import _util
@@ -145,7 +147,13 @@ class FixModeTest(unittest.TestCase):
 
 
 class OnlyCheckTest(unittest.TestCase):
-    """--only 单项触发：只跑所选检查项，并只按该项判退出码。"""
+    """--only 单项触发：只跑所选检查项，并只按该项判退出码。
+
+    已知脚本 bug（macOS /bin/bash 3.2 + UTF-8 locale）：align-skill.sh 中
+    $ONLY / $skill_name_local 后紧跟全角字符（:54/:243/:361/:368/:377/:384），
+    bash3.2 会把全角字符首字节并入变量名 → unbound variable，脚本在打印
+    结果前崩溃。scripts 侧改为 ${VAR} 后移除这些 xfail。
+    """
 
     @classmethod
     def setUpClass(cls):

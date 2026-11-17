@@ -11,6 +11,8 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from test_init_lang import MOCK_UV

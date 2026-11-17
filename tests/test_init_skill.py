@@ -13,6 +13,8 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import _util

@@ -12,6 +12,8 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 import _util
@@ -24,7 +26,8 @@ def run_install(args, cwd=None, script_path=None):
     import subprocess
     env = dict(os.environ)
     return subprocess.run(["bash", path, *args], cwd=cwd, env=env,
-                          capture_output=True, text=True, timeout=180)
+                          capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=180)
 
 
 def make_multi_skill_root():
