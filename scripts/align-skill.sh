@@ -51,7 +51,7 @@ resolve_only() {
       return 0
     fi
   done
-  die "未知检查项: $raw（可用 slug: ${CHECK_SLUGS[*]}；或序号 1-5）"
+  die "未知检查项: ${raw}（可用 slug: ${CHECK_SLUGS[*]}；或序号 1-5）"
 }
 
 # check_index <slug> — 该检查项在清单中的序号（1-5）
@@ -240,7 +240,7 @@ check_mirror() {
         --exclude=.netrc --exclude=.npmrc --exclude='credentials*' --exclude='id_rsa*' \
         --exclude='*.log' --exclude=.DS_Store \
         2>&1)"; then
-      mark_pass "$mirror_root/skills/$skill_name_local（与主源一致）"
+      mark_pass "$mirror_root/skills/${skill_name_local}（与主源一致）"
     else
       diff_n="$(printf '%s\n' "$diff_out" | grep -c . || true)"
       mark_fail "$mirror_root/skills/$skill_name_local 与主源不一致（$diff_n 处，跑 scripts/gen-distribution.sh 重建）："
@@ -299,7 +299,7 @@ run_checks() {
 # apply_fixes — 补齐缺失文件 + 追加 .gitignore 缺失项
 apply_fixes() {
   printf '\n=== 应用修复 (--fix) ===\n'
-  [ -d "$TPL_SKILL" ] || die "skill 模板目录不存在: $TPL_SKILL（无法 fix）"
+  [ -d "$TPL_SKILL" ] || die "skill 模板目录不存在: ${TPL_SKILL}（无法 fix）"
 
   local fixed=0
 
@@ -358,14 +358,14 @@ if [ "$MODE" = "fix" ]; then
   run_checks
   if [ "$FAIL_COUNT" -eq 0 ]; then
     if [ -n "$ONLY" ]; then
-      ok "单项检查通过: $ONLY，退出 0"
+      ok "单项检查通过: ${ONLY}，退出 0"
     else
       ok "全绿，退出 0"
     fi
     exit 0
   else
     if [ -n "$ONLY" ]; then
-      die "单项检查未通过: $ONLY（❌ $FAIL_COUNT 项）"
+      die "单项检查未通过: ${ONLY}（❌ $FAIL_COUNT 项）"
     else
       die "仍有 ❌ $FAIL_COUNT 项未通过（可能需手动处理，如 skill.json 字段内容）"
     fi
@@ -374,14 +374,14 @@ else
   run_checks
   if [ "$FAIL_COUNT" -eq 0 ]; then
     if [ -n "$ONLY" ]; then
-      ok "单项检查通过: $ONLY，退出 0"
+      ok "单项检查通过: ${ONLY}，退出 0"
     else
       ok "全绿，退出 0"
     fi
     exit 0
   else
     if [ -n "$ONLY" ]; then
-      die "单项检查未通过: $ONLY（❌ $FAIL_COUNT 项）"
+      die "单项检查未通过: ${ONLY}（❌ $FAIL_COUNT 项）"
     else
       die "发现 ❌ $FAIL_COUNT 项问题（用 --fix 自动补齐缺失文件与 .gitignore；skill.json 字段内容需手动编辑）"
     fi

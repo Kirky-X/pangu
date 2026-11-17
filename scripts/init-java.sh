@@ -75,7 +75,7 @@ merge_pom_plugins() {
   # xmllint 校验 well-formed（仅装了才校验；未装则 warn 但仍应用——awk 已确定性测试）
   if command -v xmllint >/dev/null 2>&1; then
     if ! xmllint --noout "$tmp" 2>/dev/null; then
-      warn "合并后 pom.xml 非 well-formed XML（见 $tmp），保留原 pom + snippet 手动合并"
+      warn "合并后 pom.xml 非 well-formed XML（见 ${tmp}），保留原 pom + snippet 手动合并"
       rm -f "$tmp"
       return 0
     fi

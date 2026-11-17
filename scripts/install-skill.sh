@@ -32,7 +32,7 @@ is_standalone_skill_repo() {
 # 解析 skill 源目录路径（stdout）
 # 用法: resolve_skill_src <skill-name>
 # 多 skill 模式: $PROJECT_ROOT/<skill-name>
-# 独立仓库模式: $PROJECT_ROOT（当且仅当 skill-name == basename(PROJECT_ROOT)）
+# 独立仓库模式: ${PROJECT_ROOT}（当且仅当 skill-name == basename(PROJECT_ROOT)）
 # 失败时返回空字符串（stderr 由调用方打印）
 resolve_skill_src() {
   local skill_name="$1"
@@ -188,7 +188,7 @@ cmd_install() {
 
   local src
   src="$(resolve_skill_src "$skill_name")" || {
-    err "skill 源目录不存在: $PROJECT_ROOT/$skill_name（独立仓库模式需 skill-name == $(basename "$PROJECT_ROOT")）";
+    err "skill 源目录不存在: $PROJECT_ROOT/${skill_name}（独立仓库模式需 skill-name == $(basename "$PROJECT_ROOT")）";
     exit 1;
   }
   [[ -d "$src" ]]      || { err "skill 源目录不存在: $src"; exit 1; }
@@ -572,7 +572,7 @@ cmd_generate_commands() {
 
   local src
   src="$(resolve_skill_src "$skill_name")" || {
-    err "skill 源目录不存在: $PROJECT_ROOT/$skill_name（独立仓库模式需 skill-name == $(basename "$PROJECT_ROOT")）";
+    err "skill 源目录不存在: $PROJECT_ROOT/${skill_name}（独立仓库模式需 skill-name == $(basename "$PROJECT_ROOT")）";
     exit 1;
   }
   local skillmd="$src/SKILL.md"
@@ -640,7 +640,7 @@ cmd_generate_commands() {
 description: $desc
 ---
 
-使用 $skill_name skill 的 $sub 子命令进行以下任务：$desc。
+使用 $skill_name skill 的 $sub 子命令进行以下任务：${desc}。
 EOF
       created=$((created+1))
     done

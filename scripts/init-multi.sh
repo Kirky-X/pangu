@@ -172,7 +172,7 @@ setup_lang_deps() {
     go)
       # Go 无 dev deps，但提示工具安装
       for cmd in golangci-lint gosec govulncheck; do
-        command -v "$cmd" >/dev/null 2>&1 || warn "Go: 缺少 $cmd（CI 自动安装，本地建议安装）"
+        command -v "$cmd" >/dev/null 2>&1 || warn "Go: 缺少 ${cmd}（CI 自动安装，本地建议安装）"
       done
       ;;
     java)
@@ -208,7 +208,7 @@ setup_lang_deps() {
 
 # --- 主语言：脚手架 + harness 基底 ---
 MAIN="${LANG_ARR[0]}"
-log "主语言: $MAIN（基底 ci.yml/release.yml/hook）"
+log "主语言: ${MAIN}（基底 ci.yml/release.yml/hook）"
 scaffold_lang "$MAIN" "$PROJ_DIR/$MAIN"
 copy_common
 copy_lang "$MAIN"
@@ -217,7 +217,7 @@ setup_lang_deps "$MAIN"
 # --- 次语言：脚手架 + harness prefix 片段 ---
 for ((i=1; i<${#LANG_ARR[@]}; i++)); do
   L="${LANG_ARR[$i]}"
-  log "次语言: $L（prefix ${L}- 片段）"
+  log "次语言: ${L}（prefix ${L}- 片段）"
   scaffold_lang "$L" "$PROJ_DIR/$L"
   copy_lang "$L" "$L"
   setup_lang_deps "$L"

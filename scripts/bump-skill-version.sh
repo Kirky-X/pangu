@@ -45,7 +45,7 @@ while [ $# -gt 0 ]; do
     -h|--help)    usage; exit 0 ;;
     --*)          die "未知选项: $1（用 -h 查看帮助）" ;;
     *)            if [ -z "$VERSION" ]; then VERSION="$1"; shift
-                  else die "参数过多: $1（version 已设为 $VERSION）"; fi ;;
+                  else die "参数过多: $1（version 已设为 ${VERSION}）"; fi ;;
   esac
 done
 

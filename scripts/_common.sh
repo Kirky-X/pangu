@@ -101,7 +101,7 @@ templates_only_cleanup() {
 check_idempotent() {
   local manifest="$1" lang="${2:-}"
   if [ -f "$manifest" ]; then
-    warn "检测到已有 $lang manifest（$manifest），跳过脚手架（避免覆盖）"
+    warn "检测到已有 $lang manifest（${manifest}），跳过脚手架（避免覆盖）"
     return 0
   fi
   return 1
@@ -212,8 +212,8 @@ copy_lang() {
 
 # render_placeholders — 把模板占位符渲染为本次初始化的实际值。
 # 占位符（预存在模板里，阈值/分支改动无需手改 9 套模板）:
-#   __PANGU_COV__     → $PANGU_COV（覆盖率门禁阈值）
-#   __PANGU_BRANCH__  → $PANGU_BRANCH（默认分支：CI push 触发 + diff coverage 基线）
+#   __PANGU_COV__     → ${PANGU_COV}（覆盖率门禁阈值）
+#   __PANGU_BRANCH__  → ${PANGU_BRANCH}（默认分支：CI push 触发 + diff coverage 基线）
 # 渲染后仍有 __PANGU_* 残留 = 渲染遗漏，fail-closed 报错（禁止带占位符入库）。
 render_placeholders() {
   local hits=0 f
@@ -372,7 +372,7 @@ apply_ffi_harness() {
   esac
 
   if [ ! -f "$PROJ_DIR/Cargo.toml" ] || [ ! -f "$PROJ_DIR/$bind_manifest" ]; then
-    die "未检测到 $bind_lang FFI 脚手架产物（期望同根存在 Cargo.toml + $bind_manifest）。
+    die "未检测到 $bind_lang FFI 脚手架产物（期望同根存在 Cargo.toml + ${bind_manifest}）。
 请先在目标目录跑官方脚手架命令:  $scaffold_cmd
 完成后重跑本脚本叠加 harness（CI/release/hook/配置）。"
   fi
@@ -397,7 +397,7 @@ apply_ffi_harness() {
 }
 
 # harness_finalize_multi — 多语言并存 monorepo 收尾。
-# 依赖 init-multi.sh 设的 $PROJ_DIR + $LANGS（逗号分隔语言列表）。
+# 依赖 init-multi.sh 设的 $PROJ_DIR + ${LANGS}（逗号分隔语言列表）。
 harness_finalize_multi() {
   cd "$PROJ_DIR"
   templates_only_cleanup

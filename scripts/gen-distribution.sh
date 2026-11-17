@@ -210,7 +210,7 @@ ok "Cursor 规则就位"
 
 # --- ③ AGENTS.md（按 概览→路由→命令→强制流程→reference 表 重排） ---
 log "生成 AGENTS.md → $AGENTS_FILE"
-[ -f "$AGENTS_FILE" ] && warn "覆盖已存在的 $AGENTS_FILE（如为手写版，先备份）"
+[ -f "$AGENTS_FILE" ] && warn "覆盖已存在的 ${AGENTS_FILE}（如为手写版，先备份）"
 mkdir -p "$(dirname "$AGENTS_FILE")"
 {
   printf '# AGENTS — %s\n\n' "$SKILL_NAME"

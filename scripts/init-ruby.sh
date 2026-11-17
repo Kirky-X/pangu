@@ -22,7 +22,7 @@ if [ "$PANGU_TEMPLATES_ONLY" = "1" ]; then
 elif [ -n "$PROJ_NAME" ]; then
   # 幂等保护：检测目标目录是否已有 gemspec 或 Gemfile
   if [ -d "$PROJ_NAME" ] && { ls "$PROJ_NAME"/*.gemspec >/dev/null 2>&1 || [ -f "$PROJ_NAME/Gemfile" ]; }; then
-    warn "检测到已有 Ruby 项目（$PROJ_NAME），跳过脚手架（避免覆盖）"
+    warn "检测到已有 Ruby 项目（${PROJ_NAME}），跳过脚手架（避免覆盖）"
     PROJ_DIR="$(cd "$PROJ_NAME" && pwd)"
   else
     bundle gem "$PROJ_NAME" --no-test --no-coc --no-license >/dev/null 2>&1 \

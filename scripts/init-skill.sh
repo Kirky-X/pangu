@@ -45,7 +45,7 @@ while [ $# -gt 0 ]; do
     -h|--help)       usage; exit 0 ;;
     --*)             die "未知选项: $1（用 -h 查看帮助）" ;;
     *)               if [ -z "$SKILL_NAME" ]; then SKILL_NAME="$1"; shift
-                     else die "参数过多: $1（skill-name 已设为 $SKILL_NAME）"; fi ;;
+                     else die "参数过多: $1（skill-name 已设为 ${SKILL_NAME}）"; fi ;;
   esac
 done
 
@@ -71,7 +71,7 @@ case "$TARGET_DIR" in
 esac
 
 if [ -e "$PROJ_DIR" ] && [ -n "$(ls -A "$PROJ_DIR" 2>/dev/null)" ]; then
-  die "目标目录已存在且非空: $PROJ_DIR（请指定空目录或新路径）"
+  die "目标目录已存在且非空: ${PROJ_DIR}（请指定空目录或新路径）"
 fi
 
 ok "skill-name=$SKILL_NAME  cn-name=$SKILL_NAME_CN  author=$SKILL_AUTHOR  target=$PROJ_DIR"
