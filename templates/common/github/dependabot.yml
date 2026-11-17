@@ -1,6 +1,11 @@
 # Dependabot 依赖更新（GitHub 原生）。
 # 通用部分：仅监控 GitHub Actions 版本（所有项目都有 CI）。
 # 语言生态依赖（cargo/pip/npm/maven/go/composer/nuget）请按需在下面取消注释。
+#
+# 2026-11-16 家族决策：patch 级版本更新不再自动开 PR（每条 updates 配 ignore）。
+# 注意官方语义：ignore 同时作用于安全更新——patch 级安全修复也不再自动开 PR，
+# 安全漏洞兜底改由 Security 页告警 + CI 的 audit/deny 门禁承担。
+# cooldown（冷却 7 天）过滤新发布即推的更新，减少 churn。
 version: 2
 updates:
   # 1) GitHub Actions 版本（通用，所有语言都适用）
@@ -9,8 +14,15 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels: [dependencies, github-actions]
+    # patch 级版本更新关闭自动 PR（2026-11-16）
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-patch"
 
   # 2) 语言生态依赖 — 按项目实际使用取消注释（仅保留对应一行）:
   # Rust:       package-ecosystem: cargo        directory: /
@@ -22,9 +34,25 @@ updates:
   # PHP:        package-ecosystem: composer     directory: /
   # .NET:       package-ecosystem: nuget        directory: /
   #
-  # 示例（Rust）:
+  # 示例（Rust，家族基线完整形态——cooldown/分组/提交前缀/patch-ignore）:
   # - package-ecosystem: cargo
   #   directory: /
-  #   schedule: { interval: weekly, day: monday }
-  #   open-pull-requests-limit: 5
+  #   schedule:
+  #     interval: weekly
+  #     day: monday
+  #   cooldown:
+  #     default-days: 7
+  #   open-pull-requests-limit: 10
   #   labels: [dependencies, rust]
+  #   commit-message:
+  #     prefix: "deps"
+  #     include: "scope"
+  #   groups:
+  #     minor-updates:
+  #       update-types:
+  #         - "minor"
+  #   # patch 级版本更新关闭自动 PR（2026-11-16）；安全兜底见文件头说明
+  #   ignore:
+  #     - dependency-name: "*"
+  #       update-types:
+  #         - "version-update:semver-patch"

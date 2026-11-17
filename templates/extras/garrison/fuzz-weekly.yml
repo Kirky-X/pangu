@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Kirky.X🌠
+# SPDX-License-Identifier: Apache-2.0
+
+name: Fuzz Weekly
+
+# 每周一 04:00 UTC（错开 feature-matrix 03:00 / codeql 周二 04:37）对 4 个解析入口
+# 深扫 10 分钟/个。崩溃输入（fuzz/artifacts/<target>/crash-*）上传 artifact 供复现修复。
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz-deep:
+    name: Fuzz Deep Scan (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_saml_xml
+          - fuzz_oidc_discovery
+          - fuzz_jwt_verify
+          - fuzz_http_auth_headers
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Rust toolchain (nightly)
+        run: bash scripts/setup_rust.sh nightly
+        shell: bash
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz deep scan (10 minutes)
+        env:
+          # 经 env 传入而非直接内插 ${{ }}：内插到 run 里会被 zizmor 判为
+          # template-injection（matrix.target 是本文件里的静态矩阵，非攻击者可控）
+          FUZZ_TARGET: ${{ matrix.target }}
+        run: cargo +nightly fuzz run "$FUZZ_TARGET" -- -max_total_time=600
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: |
+            fuzz/artifacts/
+            crash-*
+          if-no-files-found: ignore

@@ -1,0 +1,61 @@
+# 定时清理 Dependabot 遗留分支
+#
+# 背景：
+#   - Dependabot 本身没有"删除分支"的配置项，它只负责建 PR / 变基 / 关 PR。
+#   - 仓库设置 "Automatically delete head branches"（delete_branch_on_merge）
+#     只在 PR 被**合并**后删分支；关闭但不合并的 PR，分支会一直留着。
+#   - 本 workflow 补足后者：直接删除所有 dependabot/* 分支，连带关闭对应 PR。
+#
+# 调度：每周一 03:00 UTC（= 11:00 Asia/Shanghai），跑在 dependabot.yml 周一
+#   调度建完分支之后；若改了 dependabot 的调度时间请同步调整本 cron。
+#
+# ⚠ 影响：删除分支会关闭对应的 Dependabot PR。仓库的依赖更新需要在每周的
+#   窗口内人工处理，否则会被定时清掉。源头减量优先用 .github/dependabot.yml
+#   的 groups / ignore（本仓模板已默认 ignore patch 级更新），而非禁用本任务。
+#
+# 权限：workflow 级只保留 contents: read（最小权限），删分支所需写权限
+#   下放到 job 级。也可在 Actions 页面手动触发（workflow_dispatch）。
+
+name: Cleanup Dependabot branches
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Delete dependabot/* branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+
+          branches=$(gh api "repos/$REPO/branches" --paginate \
+            --jq '.[] | select(.name | startswith("dependabot/")) | .name' 2>/dev/null || true)
+
+          if [ -z "$branches" ]; then
+            echo "没有 dependabot/* 分支，无需清理"
+            exit 0
+          fi
+
+          echo "$branches" | while read -r br; do
+            [ -z "$br" ] && continue
+            echo "删除分支: $br"
+            gh api -X DELETE "repos/$REPO/git/refs/heads/$br" \
+              && echo "  ✅ 已删除" \
+              || echo "  ⚠ 删除失败，跳过"
+          done

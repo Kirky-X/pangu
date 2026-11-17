@@ -54,7 +54,7 @@ flowchart TD
 | **PHP**     | `init-php.sh`    | composer             | `php/ci.yml`    | `php/release.yml`    | psalm(security) + composer-audit           | phpunit --coverage         | Packagist（无 API，git tag 触发）     |
 | **.NET**    | `init-dotnet.sh` | dotnet CLI           | `dotnet/ci.yml` | `dotnet/release.yml` | SecurityCodeScan + dotnet format analyzers | coverlet + reportgenerator | NuGet（NUGET_API_KEY）                |
 
-> 通用 GitHub 生态文件（dependabot、codeql、issue/pr 模板、CODEOWNERS、editorconfig）在 `templates/common/`，所有语言共享。
+> 通用 GitHub 生态文件（dependabot、codeql、issue/pr 模板、CODEOWNERS、editorconfig）在 `templates/common/`，所有语言共享。dependabot 模板已含家族决策默认值（2026-11-16）：patch 级更新 ignore 不自动开 PR + cooldown 7 天；`common/github/workflows/` 另含家族事实标准（security / dependabot-branch-cleanup / tag-deleted + codeql）。
 
 ---
 
@@ -164,7 +164,8 @@ bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 
 ### 阶段 4 · 依赖与安全护栏
 
-- **Dependabot**（`.github/dependabot.yml`）：依赖与 GitHub Actions 版本自动升级 PR
+- **Dependabot**（`.github/dependabot.yml`）：依赖与 GitHub Actions 版本自动升级 PR；patch 级默认 ignore（2026-11-16 家族决策，注意 ignore 同拦安全 patch PR，漏洞兜底走 Security 告警 + audit/deny 门禁），cooldown 7 天过滤新发布 churn
+- **家族标准工作流**：security.yml（actionlint + zizmor + gitleaks 增量/全历史双 job）、dependabot-branch-cleanup.yml（周一清孤儿分支）、tag-deleted.yml（删 tag 联动删 Release）；Rust 另有 feature-matrix.yml（cargo-hack 单开矩阵，无多 feature 面可删）
 - **CodeQL**（`.github/workflows/codeql.yml`）：语义级漏洞扫描（`--no-codeql` 可裁剪）
 - 各语言另有专属 SCA（cargo-audit / pip-audit / pnpm audit / OWASP Dep-Check / govulncheck / bundler-audit / composer audit / dotnet list --vulnerable）
 
@@ -226,6 +227,7 @@ bash "$SKILL/scripts/init-rust.sh" my-project lib --no-codeql --branch master
 | skill 评测集（3 evals / 5 prompts） | `evals/evals.json` / `test-prompts.json`                          | 改触发词/输出约定后 |
 | release-please 可选模板（opt-in）  | `templates/common/release-please.yml`                              | `--changelog release-please` |
 | 模板根                             | `templates/{common,rust,python,node,java,go,cpp,ruby,php,dotnet}/` | 所有阶段       |
+| 特种工作流归档（bench/fuzz/api-surface/docker 等 12 文件） | `templates/extras/` | 需要对应能力时按 README 指引拷贝（不随 init 部署） |
 | 多语言项目指引（决策树+hook 合并） | `references/multi-language.md`                                     | 混合项目       |
 | 并存型 monorepo 编排               | `scripts/init-multi.sh`                                            | 混合项目       |
 | FFI rust→python（maturin/PyO3）    | `scripts/init-rust-pyo3.sh`                                        | 混合项目       |

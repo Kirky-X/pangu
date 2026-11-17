@@ -1,0 +1,115 @@
+# inklog Docker 数据库集成测试 CI 流水线
+#
+# 在 PR 和 push 时启动 Docker 数据库服务，运行 tests/docker.rs 集成测试。
+# 测试通过 `INKLOG_TEST_DB_URL` 环境变量连接数据库。
+name: Docker Database Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+      - "LICENSE*"
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  docker-tests:
+    name: Docker DB Tests (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 四个后端 feature 互斥（见 Cargo.toml [features] 说明），按后端分组验证；
+        # sqlite/duckdb 为 embedded 后端，不起 compose 服务。
+        db: [sqlite, postgres, mysql, duckdb]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4716b85f2fac3e324e64fa2810f6b5c3905760a5 # 1.97.1
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-docker-${{ matrix.db }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-docker-${{ matrix.db }}-
+            ${{ runner.os }}-cargo-
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@54042514f505b273907334ae2b9cdbb9a0213c1a # v2.4.0
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Start database service (only for server-side pg/mysql jobs)
+        if: matrix.db == 'postgres' || matrix.db == 'mysql'
+        run: |
+          docker compose -f docker/docker-compose.test.yml up -d --wait ${{ matrix.db }}
+
+      - name: Set INKLOG_TEST_DB_URL
+        run: |
+          case "${{ matrix.db }}" in
+            sqlite)
+              echo "INKLOG_TEST_DB_URL=sqlite:///tmp/inklog_ci_test_${{ github.run_id }}.db?mode=rwc" >> $GITHUB_ENV
+              ;;
+            postgres)
+              echo "INKLOG_TEST_DB_URL=postgres://inklog:inklog@localhost:5432/inklog_test" >> $GITHUB_ENV
+              ;;
+            mysql)
+              echo "INKLOG_TEST_DB_URL=mysql://inklog:inklog@localhost:3306/inklog_test" >> $GITHUB_ENV
+              ;;
+            duckdb)
+              echo "INKLOG_TEST_DB_URL=duckdb:///tmp/inklog_ci_test_${{ github.run_id }}.duckdb" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Build tests (${{ matrix.db }} feature)
+        run: cargo build --tests --features ${{ matrix.db }}
+
+      - name: Run Docker integration tests
+        run: cargo test --test docker --features ${{ matrix.db }} -- --test-threads=1
+
+      - name: Run lib tests (${{ matrix.db }} feature)
+        run: cargo test --lib --features ${{ matrix.db }}
+
+      - name: Clippy (${{ matrix.db }} feature)
+        run: cargo clippy --all-targets --features ${{ matrix.db }} -- -D warnings
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Cleanup embedded db test file
+        if: always() && (matrix.db == 'sqlite' || matrix.db == 'duckdb')
+        # embedded 后端用 run_id 唯一路径（同 tests 的 unique_sqlite_url 先例）：
+        # self-hosted runner 复用环境时旧库不会被 CREATE TABLE IF NOT EXISTS
+        # 幂等沿用，并发 run 互不冲突；硬杀残留也因路径唯一不影响后续 run。
+        # 不做前置通配清理——会误删同机并发 run 正在使用的文件。
+        run: |
+          rm -f "/tmp/inklog_ci_test_${{ github.run_id }}.db"
+          rm -f "/tmp/inklog_ci_test_${{ github.run_id }}.duckdb"
+
+      - name: Cleanup Docker services
+        if: always()
+        run: docker compose -f docker/docker-compose.test.yml down -v

@@ -1,0 +1,76 @@
+# tag 删除联动清理：删 tag 时同步删除对应 GitHub Release（幂等，无 Release 时跳过）。
+# registry 已发布版本不可删（crates.io 只能 yank、npm 只能 deprecate、PyPI 不可撤），
+# 本任务只清理 GitHub 侧对象——见下方 Warning 步骤的用户提示。
+# 权限：workflow 级只保留 contents: read（最小权限），删 Release 所需写权限下放 job 级。
+
+name: Tag Deleted
+
+on:
+  delete:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    name: Cleanup Release
+    if: github.event.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Get tag name
+        id: get_tag
+        run: |
+          TAG_NAME="${{ github.event.ref }}"
+          VERSION="${TAG_NAME#v}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Delete GitHub Release
+        run: |
+          TAG_NAME="${{ steps.get_tag.outputs.tag_name }}"
+
+          # 查找对应的 release
+          RELEASE_ID=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_NAME" \
+            | jq -r '.id')
+
+          if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
+            echo "Deleting release $RELEASE_ID for tag $TAG_NAME"
+            curl -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
+            echo "✅ GitHub Release deleted successfully"
+          else
+            echo "⚠️ No release found for tag $TAG_NAME"
+          fi
+
+      - name: Warning about registry (不可删除已发布版本)
+        run: |
+          cat << 'EOF'
+
+          ⚠️  IMPORTANT: registry 已发布版本不可删除
+          =====================================
+
+          主流 registry 均不支持删除已发布版本，${{ steps.get_tag.outputs.version }} 将继续存在：
+
+          - crates.io: 只能 yank（cargo yank --version <ver> <crate-name>），
+            特殊情况联系 https://crates.io/policies
+          - npm:       只能 deprecate（npm deprecate <pkg>@<ver> "reason"）
+          - PyPI:      不可撤回（Yank 支持见 PyPI 文档）
+          - RubyGems:  只能 yank（gem yank --version <ver>）
+
+          Yank/deprecate 阻止新项目依赖该版本，已依赖的项目不受影响。
+
+          EOF

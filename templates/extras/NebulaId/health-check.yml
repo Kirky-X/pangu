@@ -1,0 +1,197 @@
+name: Health Check
+
+on:
+  push:
+    branches: [ "**" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE*'
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 快速检查：格式和审计
+  quick-check:
+    name: Quick Check (fmt + audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "nebula-health"
+          cache-targets: false
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Security Audit
+        run: cargo audit --deny warnings
+
+      - name: Format Check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy Lint
+        run: cargo clippy --package nebulaid --all-targets --features etcd -- -D warnings
+
+  # 构建检查
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quick-check
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "nebula-health"
+          cache-targets: false
+
+      - name: Build Project
+        run: cargo build --package nebulaid --all-targets --features etcd
+
+  # 测试
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "nebula-health"
+          cache-targets: false
+
+      - name: Run Tests
+        run: cargo test --package nebulaid --all-targets --features etcd
+
+      - name: Generate Code Coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          cargo install grcov --locked
+          grcov . --binary-path ./target/debug/ --source-dir . --output-type cobertura-xml --output-path cobertura.xml
+
+      - name: Upload Coverage Report
+        if: github.event_name == 'pull_request'
+        uses: codecov/codecov-action@v7
+        with:
+          files: cobertura.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+  # 真实 etcd 集成：仅 push 执行（PR 跳过以控制时长）。
+  # 断言全部在 Rust #[ignore] 用例内，服务容器只负责提供 etcd。
+  etcd-integration:
+    name: etcd integration
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      etcd-a:
+        # 镜像来源变更（非选型偏好）：Bitnami 于 2025-08 收缩 Docker Hub 免费位，
+        # `bitnami/etcd:3.5` 已被删 tag——registry 返 404（`hub.docker.com/v2/repositories/bitnami/etcd/tags/3.5`），
+        # 导致本 job 从 2026-10-19 起固定报 "Docker pull failed with exit code 1"。
+        # 同版本镜像在 `bitnamilegacy/etcd:3.5` 仍在维护位（registry 返 200）。
+        image: bitnamilegacy/etcd:3.5
+        env:
+          ALLOW_NONE_AUTHENTICATION: "yes"
+          ETCD_ADVERTISE_CLIENT_URLS: "http://etcd-a:2379"
+          ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+        ports:
+          - 2379:2379
+        options: >-
+          --health-cmd "etcdctl endpoint health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      etcd-b:
+        # 跨 DC 故障转移用例的 standby 集群（dc=2）；主机端口 2380 映射容器 2379。
+        image: bitnamilegacy/etcd:3.5
+        env:
+          ALLOW_NONE_AUTHENTICATION: "yes"
+          ETCD_ADVERTISE_CLIENT_URLS: "http://etcd-b:2379"
+          ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+        ports:
+          - 2380:2379
+        options: >-
+          --health-cmd "etcdctl endpoint health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "nebula-etcd-integration"
+          cache-targets: false
+
+      - name: Run etcd integration tests
+        env:
+          ETCD_TEST_ENDPOINTS: http://127.0.0.1:2379
+        # 过滤式取 `integration_`而非 `integration_etcd_`：后者漏掉
+        # `integration_worker_allocator_allocate_keepalive_release_real_etcd`（真实 etcd 上的
+        # lease grant → 分配 → keepalive → release 链路，Phase 2 的核心回归）。
+        run: cargo test --package nebulaid --features etcd,integration-tests --lib -- --ignored integration_ --test-threads=1
+
+      - name: Run dual-cluster failover test
+        env:
+          ETCD_DC_A_ENDPOINTS: http://127.0.0.1:2379
+          ETCD_DC_B_ENDPOINTS: http://127.0.0.1:2380
+          # kill 机制：runner 与 service 容器同 docker daemon。service 容器实际
+          # name 是 "<jobid>_bitnamilegacyetcd35_<hash>"，etcd-a 只是 network
+          # alias——测试内默认命令 `--filter name=etcd-a` 按 NAME 子串匹配在
+          # GH 托管命名下不命中（kill 空转→dc1 永远 Healthy→60s 不切换），
+          # health-check 的 17 次 CI failure 全是这一处。改按 published 端口
+          # 定位容器，与命名方案无关。
+          ETCD_FAILOVER_KILL_CMD: docker ps -q --filter publish=2379 | xargs -r docker kill
+        run: cargo test --package nebulaid --features etcd,server --test etcd_failover -- --ignored --test-threads=1

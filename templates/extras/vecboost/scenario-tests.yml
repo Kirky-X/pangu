@@ -1,0 +1,80 @@
+name: Scenario Tests
+
+# Python E2E/场景测试(conftest.py 拉起真实二进制,HTTP/CLI/MCP/生命周期矩阵)。
+# CI 环境无本地模型,tests/scenario 按 models/<目录名> 存在性自动 SKIP 推理类用例,
+# 其余(生命周期/错误路径/CLI)正常执行。周跑(周一) + 手动触发,不阻塞 PR。
+# 2026-11-17 由每日降为每周一（连挂 16 次烧 176 分钟的止血项）。
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # 每周一 UTC 03:00(北京时间 11:00)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+concurrency:
+  group: scenario-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scenario:
+    name: Pytest Scenario Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Install Protocol Buffers compiler
+        # grpc feature 依赖 sdforge，其 build.rs 需要 protoc 生成代码
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: "vecboost-scenario"
+          cache-targets: false
+
+      - name: Build server binary (protocol features required by scenario suite)
+        # 套件覆盖 auth/CLI/MCP/gRPC 能力：仅 --features http 会使 auth 路由
+        # 缺失（login 404 假红）且 CLI/MCP 探针退化为 skip。
+        # candle/db/sqlite 与 scripts/run-scenario-tests.sh 对齐：conftest make_config
+        # 无条件钉 engine_type="candle"（场景资产为 safetensors），未编译 candle 时
+        # 启动期显性拒绝（startup-engine-candle-not-compiled），全部 server profile
+        # 起不来（run 42201785039 起 40+ 连红，90 setup 错误即此原因）；profile
+        # 配置含 [database] url="sqlite::memory:"，需 db+sqlite。
+        run: cargo build -p vecboost --features http,auth,cli,mcp,grpc,candle,db,sqlite
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          # grpcio：test_server_modes.py 的 grpc_call 用 grpc.insecure_channel
+          # 直连 sdforge gRPC 腿（R003 两场景），缺包时 pytest 收集期即 ImportError
+          # （实跑 run 42009371703 即此原因）。
+          python3 -m pip install pytest pytest-timeout requests grpcio
+
+      - name: Run scenario tests
+        run: pytest tests/scenario -q --junitxml=scenario-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scenario-results
+          path: scenario-results.xml
+          retention-days: 14

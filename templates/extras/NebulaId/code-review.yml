@@ -1,0 +1,90 @@
+name: Code Review
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**.rs'
+      - '**/Cargo.toml'
+      - 'tools/code-review/**'
+  pull_request:
+    paths:
+      - '**.rs'
+      - '**/Cargo.toml'
+      - 'tools/code-review/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: info
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-review:
+    name: Multi-Agent Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "nebula-review"
+          cache-targets: false
+
+      - name: Detect code review tool
+        id: detect-tool
+        run: |
+          if cargo metadata --no-deps --format-version 1 | \
+             grep -q '"name":"nebula-code-review"'; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "nebula-code-review package found in workspace"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "nebula-code-review package not found in workspace - skipping agent-based review"
+          fi
+
+      - name: Build code review tool
+        if: steps.detect-tool.outputs.exists == 'true'
+        run: cargo build --release -p nebula-code-review
+
+      - name: Run Full Code Review
+        id: full-review
+        if: steps.detect-tool.outputs.exists == 'true' && success()
+        run: |
+          echo "=== Full Code Review ==="
+          ./target/release/nebula-code-review --format markdown --output review-report.md
+          cat review-report.md
+          echo "status=completed" >> $GITHUB_OUTPUT
+
+      - name: Upload Review Report
+        if: steps.full-review.outputs.status == 'completed' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-review-report
+          path: review-report.md
+          retention-days: 7
+
+      - name: Check Critical Issues
+        if: steps.full-review.outputs.status == 'completed' && always()
+        run: |
+          if [ -f "review-report.md" ]; then
+            CRITICAL_COUNT=$(grep -c "Critical" review-report.md || echo "0")
+            if [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "::error::Found $CRITICAL_COUNT critical issues in code review"
+              exit 1
+            fi
+            echo "No critical issues found"
+          else
+            echo "::error::Review report not generated despite tool being available"
+            exit 1
+          fi

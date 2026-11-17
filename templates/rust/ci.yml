@@ -1,79 +1,206 @@
-# Rust CI 质量门禁：fmt / clippy / test / coverage(全局+diff) / audit / deny
+# Rust CI 质量门禁（家族终态 2026-11-17 蒸馏：confers 7 仓统一基线结构 + 动态矩阵模式）
+# 作业面：fmt / clippy / check / test / cross-platform(动态矩阵) / doc / security / coverage(全局+diff)
+# 钉版纪律：action 一律 SHA 钉 + 注释恰为版本号；升级须本地 review 后手改 SHA
+# 仓专属步骤（protoc / NATS / redis 等服务依赖、feature 组合矩阵、bench）按需自行追加
 name: CI
 
 on:
   push:
     branches: [__PANGU_BRANCH__]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+      - "LICENSE*"
   pull_request:
+    branches: [__PANGU_BRANCH__]
+  schedule:
+    # 每周一 03:00 UTC：动态矩阵此时补齐 macOS/Windows 兜底腿
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: 1
 
 jobs:
-  quality:
-    name: fmt + clippy
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
         with:
-          components: rustfmt, clippy
-      - uses: swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --all-features
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+          components: clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Check default features
+        run: cargo check --workspace
+      - name: Check full features
+        run: cargo check --workspace --all-features
 
   test:
-    name: test + coverage (global ≥ + diff ≥)
+    name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      # 多 feature 组合示例（仓有 curated features 时启用）：
+      #   strategy: { fail-fast: false, matrix: { features: ["default", "full"] } }
+      #   run: cargo test --workspace --features ${{ matrix.features }}
+      - name: Run tests
+        run: cargo test --workspace --all-features --no-fail-fast
+
+  # 动态矩阵计算 job（家族铁律：job 级 if 引用 matrix 上下文会 startup_failure，
+  # 矩阵必须由前置 job 算好输出，build 作业只引 needs.result + fromJSON 展开）。
+  # push/PR 仅 ubuntu 腿（降频省 Actions 分钟额度），schedule/dispatch 补齐三平台兜底。
+  build-matrix:
+    name: Compute build matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        # event_name 经 env 传入 step，不在 run: 内 ${{ }} 内插（注入面收敛）
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "schedule" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo 'matrix={"os":["ubuntu-latest","macos-latest","windows-latest"]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"os":["ubuntu-latest"]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: build-matrix
+    # 只引 needs.result：矩阵上下文在 job 级 if 不可用（见上方铁律注释）
+    if: needs.build-matrix.result == 'success'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.build-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: cross-${{ runner.os }}
+      - name: Build (all features)
+        run: cargo build --workspace --all-features
+      - name: Build (no default features)
+        run: cargo build --workspace --no-default-features
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Build documentation
+        run: cargo doc --workspace --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Install tools
+        uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+        with:
+          tool: cargo-audit,cargo-deny
+      - name: cargo deny
+        run: cargo deny check
+      - name: cargo audit
+        run: cargo audit
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
-      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率。
-      # 代价：全历史 checkout，超大仓库可达分钟级；fork PR 会把全量历史拉进 runner——
-      # 历史若误提交过敏感文件请先清洗（或改用仅取基线分支的浅 fetch 定制）。
-      - uses: actions/checkout@v4
+      # fetch-depth: 0 供 diff-cover 对比基线分支计算变更行覆盖率
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo test --all-features --no-fail-fast
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+        with:
+          toolchain: 1.97.1
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+        with:
+          tool: cargo-llvm-cov
       - name: Coverage global (fail under __PANGU_COV__% lines)
-        run: cargo llvm-cov --all-features --fail-under-lines __PANGU_COV__ --lcov --output-path lcov.info
-      # diff coverage：只对相对基线分支新增/修改的行设阈值——新代码 0 覆盖也能拉高全局覆盖率的盲区由这层堵住
-      # （SKILL.md 核心原则 4 + references/coverage-standards.md「diff coverage」段的落地）
-      # uvx 跑 diff-cover（setup-uv 自带缓存，避免 pipx 每次 CI 冷安装）
-      - uses: astral-sh/setup-uv@v4
+        run: cargo llvm-cov --workspace --all-features --fail-under-lines __PANGU_COV__ --lcov --output-path lcov.info
+      # diff coverage：只对相对基线分支新增/修改的行设阈值（SKILL.md 核心原则 4）
+      - uses: astral-sh/setup-uv@v6
       - name: Diff coverage (changed lines ≥ __PANGU_COV__%)
         env:
-          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面（分支名可含 shell 元字符）
+          # env 间接传递：${{ }} 直接插值进 run: 是 Actions 脚本注入面
           BASE_BRANCH: ${{ github.base_ref || '__PANGU_BRANCH__' }}
         run: |
           uvx diff-cover lcov.info --fail-under __PANGU_COV__ \
             --compare-branch "origin/${BASE_BRANCH}"
       - name: Upload to Codecov (可选)
         if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./lcov.info
           fail_ci_if_error: false
-
-  security:
-    name: cargo-audit + cargo-deny
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: cargo-audit (RustSec 漏洞库)
-        uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: cargo-deny (license / ban / advisory)
-        uses: EmbarkStudios/cargo-deny-action@v2
