@@ -37,8 +37,10 @@ copy_lang go
 APP_NAME="$(basename "$PROJ_DIR")"
 if [ -f "$PROJ_DIR/Makefile" ] && grep -q 'APP_NAME ?= app' "$PROJ_DIR/Makefile"; then
   # 转义 sed 替换文本中的特殊字符（目录名可能含 & / . 等，未转义会损坏 Makefile）
+  # BSD sed 的 -i 必须带后缀参数（裸 -i 会把替换脚本当后缀吃掉），用 -i.bak 后清理
   APP_NAME_ESC="$(printf '%s' "$APP_NAME" | sed -e 's/[/&]/\\&/g')"
-  sed -i "s/APP_NAME ?= app/APP_NAME ?= $APP_NAME_ESC/" "$PROJ_DIR/Makefile"
+  sed -i.bak -e "s/APP_NAME ?= app/APP_NAME ?= $APP_NAME_ESC/" "$PROJ_DIR/Makefile"
+  rm -f "$PROJ_DIR/Makefile.bak"
   ok "Makefile APP_NAME 已替换为 '$APP_NAME'"
 fi
 

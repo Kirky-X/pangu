@@ -164,7 +164,7 @@ copy_lang() {
   local wf="$PROJ_DIR/.github/workflows"
   mkdir -p "$wf"
   local f b dest
-  for f in ci.yml release.yml codeql.yml; do
+  for f in ci.yml release.yml codeql.yml feature-matrix.yml; do
     [ -f "$src/$f" ] || continue
     if [ "$f" = "release.yml" ] && [ "$PANGU_SKIP_RELEASE" = "1" ]; then continue; fi
     if [ "$f" = "codeql.yml" ] && [ "$PANGU_SKIP_CODEQL" = "1" ]; then continue; fi
@@ -187,7 +187,7 @@ copy_lang() {
     [ -f "$f" ] || continue
     b="$(basename "$f")"
     case "$b" in
-      ci.yml|release.yml|codeql.yml) continue ;;  # 已拷到 workflows
+      ci.yml|release.yml|codeql.yml|feature-matrix.yml) continue ;;  # 已拷到 workflows
       .gitignore) continue ;;  # ponytail: 由下方合并逻辑独占处理（首语言 cp 成基底/后续追加带段头段落）；循环里 cp 会让次语言覆盖主语言基底 + 同语言重复写入
       *.bak|*.bak.*|*.orig|*.backup|*.swp|*~) continue ;;  # ponytail: 防编辑器/darwin 备份残留污染用户项目。*.bak.* 覆盖 darwin 的 .bak.YYYYMMDD-HHMM 命名（曾发生 lefthook.yml.bak.20260702-0000 被拷入新项目根）
     esac
@@ -226,9 +226,9 @@ render_placeholders() {
     sed -i.bak -e "s|__PANGU_COV__|${PANGU_COV}|g" -e "s|__PANGU_BRANCH__|${branch_esc}|g" "$f"
     rm -f "${f}.bak"
     hits=$((hits + 1))
-  done < <(grep -rlZ --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor \
+  done < <(grep -rl --null --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor \
       --exclude-dir=target --exclude-dir=.venv \
-      '__PANGU_COV__\|__PANGU_BRANCH__' "$PROJ_DIR" 2>/dev/null || true)
+      -e '__PANGU_COV__' -e '__PANGU_BRANCH__' "$PROJ_DIR" 2>/dev/null || true)
   if [ "$hits" -gt 0 ]; then
     ok "占位符已渲染 (cov=${PANGU_COV}% branch=${PANGU_BRANCH}，${hits} 个文件)"
   fi

@@ -69,9 +69,9 @@ printf '\033[1;34m[harness]\033[0m 模板完整性检查\n'
 tpl_errors=0
 for lang_dir in templates/*/; do
   lang="$(basename "$lang_dir")"
-  # 跳过 common/ 和 skill/（非语言模板）
+  # 跳过 common/、skill/、extras/（非语言模板目录）
   case "$lang" in
-    common|skill) continue ;;
+    common|skill|extras) continue ;;
   esac
   for req in $REQUIRED_FILES; do
     if [ ! -f "$lang_dir$req" ]; then
