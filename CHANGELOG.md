@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0
+## 0.1.11
 
 ### Added
 - dependabot 模板家族终态（2026-11-16 决策）：patch 级更新默认 ignore 不自动开 PR + cooldown 7 天；注释示例同步为完整现代形态
